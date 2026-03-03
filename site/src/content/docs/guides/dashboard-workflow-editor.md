@@ -5,6 +5,8 @@ description: Build agent orchestration workflows, assign tools to workers, and r
 
 The dashboard (`server/packages/dashboard`) is where operators configure orchestration without redeploying code.
 
+![Dashboard — Projects & Devices view](/dashboard-projects.png)
+
 ## Tabs at a glance
 
 - **Projects & Devices**: assign a workflow to each device.
@@ -13,6 +15,8 @@ The dashboard (`server/packages/dashboard`) is where operators configure orchest
 - **Runs**: view agent graph execution history and inspect per-step details.
 
 ## Building workflows
+
+![Workflow Library with Document Processing Pipeline and Image Quality Review](/dashboard-workflows.png)
 
 Open **Workflow Library** and create a new workflow or edit an existing one.
 
@@ -67,6 +71,8 @@ This controls which graph runs for that device's uploaded documents.
 
 ## Semantic document search
 
+![Docs tab with seeded documents and semantic search](/dashboard-docs.png)
+
 In **Documents**, search with natural language (example: `red bike by a window`).
 
 - If the API finds a matching description seed, results are ranked by embedding distance.
@@ -76,6 +82,8 @@ In **Documents**, search with natural language (example: `red bike by a window`)
 Use this view to validate that the ingestion + embedding pipeline is producing useful retrieval behavior.
 
 ## Viewing runs
+
+![Runs tab with expanded run showing supervisor routing steps](/dashboard-run-detail.png)
 
 The **Runs** tab lists every agent graph execution with its status, workflow name, timestamp, and duration.
 

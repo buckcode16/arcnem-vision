@@ -71,6 +71,20 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 
 **The pipeline:** Client captures image → API issues presigned S3 URL → Client uploads directly → API acknowledges and fires Inngest event → Go agent service loads the document's agent graph from Postgres → LangGraph builds and executes the workflow → Worker nodes call LLMs, tool nodes call MCP → MCP generates CLIP embeddings and descriptions → Everything lands in Postgres with HNSW cosine indexes → Searchable by meaning.
 
+## Screenshots
+
+| Flutter Client | Dashboard — Projects & Devices |
+|---|---|
+| ![Flutter Client](site/public/flutter-client.png) | ![Dashboard Projects](site/public/dashboard-projects.png) |
+
+| Workflow Library | Document Search |
+|---|---|
+| ![Workflow Library](site/public/dashboard-workflows.png) | ![Document Search](site/public/dashboard-docs.png) |
+
+| Agent Run Details |
+|---|
+| ![Agent Run Details](site/public/dashboard-run-detail.png) |
+
 **Agent graphs are data, not code.** Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Three node types:
 
 - **Worker** — ReAct agent with access to MCP tools

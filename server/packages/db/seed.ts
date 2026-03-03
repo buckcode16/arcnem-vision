@@ -5,6 +5,8 @@ import {
 	agentGraphEdges,
 	agentGraphNodes,
 	agentGraphNodeTools,
+	agentGraphRuns,
+	agentGraphRunSteps,
 	agentGraphs,
 	apikeys,
 	devices,
@@ -1013,6 +1015,217 @@ const seed = async () => {
 			})),
 		);
 
+		// ── Example Agent Graph Runs (quality review supervisor workflow) ──
+
+		const runBaseTime = new Date(now.getTime() - 1000 * 60 * 10); // 10 min ago
+
+		// Run 1: sharp-passport → routed to GOOD worker (completed)
+		const goodRunStarted = new Date(runBaseTime.getTime());
+		const goodRunFinished = new Date(runBaseTime.getTime() + 1000 * 12); // 12s
+
+		const sharpPassportDoc = qrSeedDocumentsWithIds.find(
+			(d) => d.slug === "sharp-passport",
+		);
+		if (!sharpPassportDoc)
+			throw new Error("Failed to find sharp-passport seed document");
+
+		const [goodRun] = await tx
+			.insert(agentGraphRuns)
+			.values({
+				agentGraphId: qualityReviewGraph.id,
+				status: "completed",
+				initialState: JSON.stringify({
+					temp_url: `https://s3.example.com/${sharpPassportDoc.objectKey}`,
+					document_id: sharpPassportDoc.documentId,
+				}),
+				finalState: JSON.stringify({
+					temp_url: `https://s3.example.com/${sharpPassportDoc.objectKey}`,
+					document_id: sharpPassportDoc.documentId,
+					quality_review:
+						"The passport scan is sharp and well-lit with excellent contrast. All biographical fields, the photo, and the MRZ code are fully legible. The document is properly framed with no cropping issues. Minor JPEG compression artifacts are present but do not affect readability. Verdict: GOOD",
+					routed_to: "image_quality_good_worker",
+				}),
+				startedAt: goodRunStarted,
+				finishedAt: goodRunFinished,
+			})
+			.returning({ id: agentGraphRuns.id });
+		if (!goodRun) throw new Error("Failed to create good quality run");
+
+		await tx.insert(agentGraphRunSteps).values([
+			{
+				runId: goodRun.id,
+				nodeKey: "quality_review_supervisor",
+				stepOrder: 1,
+				stateDelta: JSON.stringify({
+					routing_decision: "image_quality_good_worker",
+					reasoning:
+						"Image is a high-resolution passport scan with clear details. Routing to good-quality specialist.",
+				}),
+				startedAt: new Date(goodRunStarted.getTime()),
+				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 3),
+			},
+			{
+				runId: goodRun.id,
+				nodeKey: "image_quality_good_worker",
+				stepOrder: 2,
+				stateDelta: JSON.stringify({
+					quality_review:
+						"The passport scan is sharp and well-lit with excellent contrast. All biographical fields, the photo, and the MRZ code are fully legible. The document is properly framed with no cropping issues. Minor JPEG compression artifacts are present but do not affect readability. Verdict: GOOD",
+				}),
+				startedAt: new Date(goodRunStarted.getTime() + 1000 * 3),
+				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 9),
+			},
+			{
+				runId: goodRun.id,
+				nodeKey: "quality_review_supervisor",
+				stepOrder: 3,
+				stateDelta: JSON.stringify({
+					decision: "FINISH",
+					routed_to: "image_quality_good_worker",
+				}),
+				startedAt: new Date(goodRunStarted.getTime() + 1000 * 9),
+				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 12),
+			},
+		]);
+
+		// Run 2: blurry-receipt → routed to BAD worker (completed)
+		const badRunStarted = new Date(runBaseTime.getTime() + 1000 * 30);
+		const badRunFinished = new Date(badRunStarted.getTime() + 1000 * 14);
+
+		const blurryReceiptDoc = qrSeedDocumentsWithIds.find(
+			(d) => d.slug === "blurry-receipt",
+		);
+		if (!blurryReceiptDoc)
+			throw new Error("Failed to find blurry-receipt seed document");
+
+		const [badRun] = await tx
+			.insert(agentGraphRuns)
+			.values({
+				agentGraphId: qualityReviewGraph.id,
+				status: "completed",
+				initialState: JSON.stringify({
+					temp_url: `https://s3.example.com/${blurryReceiptDoc.objectKey}`,
+					document_id: blurryReceiptDoc.documentId,
+				}),
+				finalState: JSON.stringify({
+					temp_url: `https://s3.example.com/${blurryReceiptDoc.objectKey}`,
+					document_id: blurryReceiptDoc.documentId,
+					quality_review:
+						"The receipt image suffers from significant motion blur making most line items illegible. Exposure is acceptable but the blur renders text unreadable beyond the store name. The total amount is partially obscured. Remediation: stabilize the device or use a flat surface, ensure adequate lighting, and retake at a closer distance with tap-to-focus enabled. Verdict: BAD",
+					routed_to: "image_quality_bad_worker",
+				}),
+				startedAt: badRunStarted,
+				finishedAt: badRunFinished,
+			})
+			.returning({ id: agentGraphRuns.id });
+		if (!badRun) throw new Error("Failed to create bad quality run");
+
+		await tx.insert(agentGraphRunSteps).values([
+			{
+				runId: badRun.id,
+				nodeKey: "quality_review_supervisor",
+				stepOrder: 1,
+				stateDelta: JSON.stringify({
+					routing_decision: "image_quality_bad_worker",
+					reasoning:
+						"Image shows clear motion blur and poor legibility. Routing to bad-quality specialist.",
+				}),
+				startedAt: new Date(badRunStarted.getTime()),
+				finishedAt: new Date(badRunStarted.getTime() + 1000 * 3),
+			},
+			{
+				runId: badRun.id,
+				nodeKey: "image_quality_bad_worker",
+				stepOrder: 2,
+				stateDelta: JSON.stringify({
+					quality_review:
+						"The receipt image suffers from significant motion blur making most line items illegible. Exposure is acceptable but the blur renders text unreadable beyond the store name. The total amount is partially obscured. Remediation: stabilize the device or use a flat surface, ensure adequate lighting, and retake at a closer distance with tap-to-focus enabled. Verdict: BAD",
+				}),
+				startedAt: new Date(badRunStarted.getTime() + 1000 * 3),
+				finishedAt: new Date(badRunStarted.getTime() + 1000 * 11),
+			},
+			{
+				runId: badRun.id,
+				nodeKey: "quality_review_supervisor",
+				stepOrder: 3,
+				stateDelta: JSON.stringify({
+					decision: "FINISH",
+					routed_to: "image_quality_bad_worker",
+				}),
+				startedAt: new Date(badRunStarted.getTime() + 1000 * 11),
+				finishedAt: new Date(badRunStarted.getTime() + 1000 * 14),
+			},
+		]);
+
+		// Run 3: dark-contract → routed to BAD worker (completed)
+		const darkRunStarted = new Date(runBaseTime.getTime() + 1000 * 60);
+		const darkRunFinished = new Date(darkRunStarted.getTime() + 1000 * 15);
+
+		const darkContractDoc = qrSeedDocumentsWithIds.find(
+			(d) => d.slug === "dark-contract",
+		);
+		if (!darkContractDoc)
+			throw new Error("Failed to find dark-contract seed document");
+
+		const [darkRun] = await tx
+			.insert(agentGraphRuns)
+			.values({
+				agentGraphId: qualityReviewGraph.id,
+				status: "completed",
+				initialState: JSON.stringify({
+					temp_url: `https://s3.example.com/${darkContractDoc.objectKey}`,
+					document_id: darkContractDoc.documentId,
+				}),
+				finalState: JSON.stringify({
+					temp_url: `https://s3.example.com/${darkContractDoc.objectKey}`,
+					document_id: darkContractDoc.documentId,
+					quality_review:
+						"The contract photograph is severely underexposed with very low contrast between text and background. Most paragraphs are unreadable without significant post-processing. Page edges are partially cropped and there is noticeable perspective distortion. Remediation: use flash or move to a well-lit area, photograph each page flat on a contrasting surface, ensure all margins are visible, and consider using a document scanning app with auto-correction. Verdict: BAD",
+					routed_to: "image_quality_bad_worker",
+				}),
+				startedAt: darkRunStarted,
+				finishedAt: darkRunFinished,
+			})
+			.returning({ id: agentGraphRuns.id });
+		if (!darkRun) throw new Error("Failed to create dark contract run");
+
+		await tx.insert(agentGraphRunSteps).values([
+			{
+				runId: darkRun.id,
+				nodeKey: "quality_review_supervisor",
+				stepOrder: 1,
+				stateDelta: JSON.stringify({
+					routing_decision: "image_quality_bad_worker",
+					reasoning:
+						"Image is severely underexposed with poor contrast and partial cropping. Routing to bad-quality specialist.",
+				}),
+				startedAt: new Date(darkRunStarted.getTime()),
+				finishedAt: new Date(darkRunStarted.getTime() + 1000 * 4),
+			},
+			{
+				runId: darkRun.id,
+				nodeKey: "image_quality_bad_worker",
+				stepOrder: 2,
+				stateDelta: JSON.stringify({
+					quality_review:
+						"The contract photograph is severely underexposed with very low contrast between text and background. Most paragraphs are unreadable without significant post-processing. Page edges are partially cropped and there is noticeable perspective distortion. Remediation: use flash or move to a well-lit area, photograph each page flat on a contrasting surface, ensure all margins are visible, and consider using a document scanning app with auto-correction. Verdict: BAD",
+				}),
+				startedAt: new Date(darkRunStarted.getTime() + 1000 * 4),
+				finishedAt: new Date(darkRunStarted.getTime() + 1000 * 12),
+			},
+			{
+				runId: darkRun.id,
+				nodeKey: "quality_review_supervisor",
+				stepOrder: 3,
+				stateDelta: JSON.stringify({
+					decision: "FINISH",
+					routed_to: "image_quality_bad_worker",
+				}),
+				startedAt: new Date(darkRunStarted.getTime() + 1000 * 12),
+				finishedAt: new Date(darkRunStarted.getTime() + 1000 * 15),
+			},
+		]);
+
 		return {
 			user,
 			dashboardSession,
@@ -1030,6 +1243,11 @@ const seed = async () => {
 			seededDescriptionCount: insertedDescriptions.length,
 			seededQRDocuments: qrSeedDocumentsWithIds,
 			seededQRDescriptionCount: insertedQRDescriptions.length,
+			agentRuns: {
+				goodRun: { id: goodRun.id, document: "sharp-passport", verdict: "GOOD" },
+				badRun: { id: badRun.id, document: "blurry-receipt", verdict: "BAD" },
+				darkRun: { id: darkRun.id, document: "dark-contract", verdict: "BAD" },
+			},
 		};
 	});
 
@@ -1080,6 +1298,10 @@ const seed = async () => {
 		console.log(
 			`  QR doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
 		);
+	}
+	console.log("\nAgent Graph Runs (quality review):");
+	for (const [label, run] of Object.entries(result.agentRuns)) {
+		console.log(`  ${label}: ${run.document} → ${run.verdict} (${run.id})`);
 	}
 };
 

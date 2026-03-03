@@ -36,6 +36,8 @@ Client captures image → API issues presigned S3 URL → Client uploads directl
 
 ## Agent Graph System
 
+![Workflow Library showing both pipeline and supervisor workflows](/dashboard-workflows.png)
+
 Agent graphs are data, not code. Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Three node types:
 
 - **Worker** — ReAct agent with access to MCP tools
