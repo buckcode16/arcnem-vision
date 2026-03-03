@@ -12,17 +12,13 @@ The dashboard runs as a TanStack Start app and talks to the API server for data 
 
 ## Local development
 
-From the repository root:
+The recommended way to run the dashboard is via `tilt up` from the repository root — it starts all services including the dashboard with hot reload. See the [root README](../../../README.md#quickstart) for details.
+
+To run the dashboard standalone:
 
 ```bash
-cd server
-bun i
-```
-
-In this package:
-
-```bash
-cd packages/dashboard
+cd server && bun i
+cd server/packages/dashboard
 cp .env.example .env
 bun run dev
 ```

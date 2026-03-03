@@ -3,6 +3,14 @@ title: Commands
 description: Common development commands for each service.
 ---
 
+## Running Services
+
+```bash
+tilt up
+```
+
+Tilt installs dependencies, starts infrastructure, runs migrations, and launches all services. Open the Tilt UI at `http://localhost:10350` for logs and manual resource triggers (seed, introspection).
+
 ## Database
 
 ```bash
@@ -12,11 +20,7 @@ cd server/packages/db && bun run db:studio     # Drizzle Studio UI
 cd server/packages/db && bun run db:seed       # Seed data
 ```
 
-## Infrastructure
-
-```bash
-docker compose up -d postgres redis minio minio-init
-```
+Tilt runs `db:generate` and `db:migrate` automatically on startup. Seed and introspection are available as manual triggers in the Tilt UI.
 
 ## Go Model Generation
 
@@ -25,6 +29,8 @@ After schema changes, regenerate Go models from the Drizzle-managed Postgres sch
 ```bash
 cd models/db && go run ./cmd/introspect
 ```
+
+Also available as a manual trigger in the Tilt UI.
 
 ## Linting & Analysis
 
@@ -39,29 +45,10 @@ cd client && flutter analyze                   # Dart static analysis
 cd client && flutter test                      # Flutter widget tests
 ```
 
-## Running Services
-
-**One command** (recommended):
-
-```bash
-tilt up
-```
-
-Tilt UI is usually available at `http://localhost:10350` (logs + manual resources).
-
-**Or manually:**
-
-```bash
-cd server/packages/api && bun run dev          # API on :3000
-cd server/packages/dashboard && bun run dev    # Dashboard on :3001
-cd models/agents && go run .                   # Agents on :3020
-cd models/mcp && go run .                      # MCP on :3021
-npx inngest-cli@latest dev -u http://localhost:3020/api/inngest
-cd client && flutter run -d chrome             # Flutter client
-```
-
 ## Documentation Site
 
+Started automatically by `tilt up`, or run standalone:
+
 ```bash
-cd site && bun run dev                         # Docs site on :4321 (default Astro dev port)
+cd site && bun run dev                         # Docs site on :4321
 ```

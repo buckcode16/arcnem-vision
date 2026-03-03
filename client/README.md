@@ -21,6 +21,10 @@ Flutter app for Arcnem Vision — capture images, talk to AI agents, and browse 
 
 ## Getting started
 
+The recommended way to run the client is via `tilt up` from the repository root — it starts all services including the Flutter app. See the [root README](../README.md#quickstart) for details.
+
+To run the client standalone:
+
 ```bash
 flutter pub get
 cp .env.example .env

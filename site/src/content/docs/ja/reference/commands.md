@@ -3,6 +3,14 @@ title: コマンド一覧
 description: 各サービスの開発でよく使うコマンド。
 ---
 
+## サービスの起動
+
+```bash
+tilt up
+```
+
+Tiltが依存関係をインストールし、インフラを起動し、マイグレーションを実行し、すべてのサービスを起動します。Tilt UI（`http://localhost:10350`）でログの確認やシード・イントロスペクトなどの手動リソース実行ができます。
+
 ## データベース
 
 ```bash
@@ -12,11 +20,7 @@ cd server/packages/db && bun run db:studio     # Drizzle Studio UI
 cd server/packages/db && bun run db:seed       # シードデータ
 ```
 
-## インフラ
-
-```bash
-docker compose up -d postgres redis minio minio-init
-```
+Tiltは起動時に`db:generate`と`db:migrate`を自動実行。シードとイントロスペクトはTilt UIの手動トリガーとして利用可能。
 
 ## Goモデル生成
 
@@ -25,6 +29,8 @@ docker compose up -d postgres redis minio minio-init
 ```bash
 cd models/db && go run ./cmd/introspect
 ```
+
+Tilt UIの手動トリガーとしても利用可能。
 
 ## リント＆解析
 
@@ -39,29 +45,10 @@ cd client && flutter analyze                   # Dart静的解析
 cd client && flutter test                      # Flutterウィジェットテスト
 ```
 
-## サービスの起動
-
-**ワンコマンド**（推奨）：
-
-```bash
-tilt up
-```
-
-Tilt UI は通常 `http://localhost:10350`（ログ確認と手動リソース実行）。
-
-**手動起動：**
-
-```bash
-cd server/packages/api && bun run dev          # API :3000
-cd server/packages/dashboard && bun run dev    # ダッシュボード :3001
-cd models/agents && go run .                   # エージェント :3020
-cd models/mcp && go run .                      # MCP :3021
-npx inngest-cli@latest dev -u http://localhost:3020/api/inngest
-cd client && flutter run -d chrome             # Flutterクライアント
-```
-
 ## ドキュメントサイト
 
+`tilt up`で自動起動、または単体で実行：
+
 ```bash
-cd site && bun run dev                         # ドキュメントサイト（既定: :4321）
+cd site && bun run dev                         # ドキュメントサイト :4321
 ```

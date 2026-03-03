@@ -8,26 +8,18 @@ description: Clone, configure, and run Arcnem Vision locally.
 - Docker + Docker Compose
 - Bun (server)
 - Go 1.25+ (agents, MCP)
-- CompileDaemon (Go hot reload for `tilt up`)
+- CompileDaemon (Go hot reload — `go install github.com/githubnemo/CompileDaemon@latest`)
 - Flutter SDK (client)
-- Inngest CLI (`npx inngest-cli@latest`)
-- S3-compatible object storage (local MinIO via Docker Compose, or hosted S3/R2/Railway/etc.)
-- Tilt (recommended)
+- Tilt
 
-## 1. Clone and install
+## 1. Clone and configure
 
 ```bash
 git clone https://github.com/arcnem-ai/arcnem-vision.git
 cd arcnem-vision
 ```
 
-```bash
-cd server && bun i            # TypeScript dependencies
-cd models && go work sync     # Go workspace
-cd client && flutter pub get  # Flutter packages
-```
-
-## 2. Configure environment
+Copy every `.env.example` to `.env`:
 
 ```bash
 cp server/packages/api/.env.example server/packages/api/.env
@@ -37,53 +29,24 @@ cp models/mcp/.env.example          models/mcp/.env
 cp client/.env.example              client/.env
 ```
 
-You'll need:
-- **S3-compatible storage config** — default local dev uses MinIO from `docker-compose.yaml`. Set the following in `server/packages/api/.env`, `server/packages/db/.env`, and `models/agents/.env`:
-  - `S3_ACCESS_KEY_ID=minioadmin`
-  - `S3_SECRET_ACCESS_KEY=minioadmin`
-  - `S3_BUCKET=arcnem-vision`
-  - `S3_ENDPOINT=http://localhost:9000`
-  - `S3_REGION=us-east-1`
-  - `S3_USE_PATH_STYLE=true` (agents only)
-- **Or hosted S3-compatible bucket** — AWS S3, Cloudflare R2, Railway Object Storage, etc.
+Fill in the required secrets:
+
 - **OpenAI API key** — `OPENAI_API_KEY` in `models/agents/.env`
 - **Replicate token** — `REPLICATE_API_TOKEN` in `models/mcp/.env`
 - **Database URL** — `postgres://postgres:postgres@localhost:5480/postgres` in the DB-related env files
+- **S3 storage** — defaults work out of the box with the local MinIO from `docker-compose.yaml` (see [S3 config details](#s3-config-details) below)
 
-## 3. Start infrastructure
-
-```bash
-docker compose up -d postgres redis minio minio-init
-```
-
-## 4. Migrate and seed
-
-```bash
-cd server/packages/db && bun run db:generate && bun run db:migrate && bun run db:seed
-```
-
-The seed prints a usable API key. For auto-auth in the Flutter app during development, set `DEBUG_SEED_API_KEY=...` in `client/.env`.
-
-## 5. Run everything
-
-**One command** (recommended):
+## 2. Start everything
 
 ```bash
 tilt up
 ```
 
-`tilt up` launches the full local stack and gives you the Tilt UI (typically `http://localhost:10350`) to inspect logs and run manual resources such as seed/introspection tasks.
+That's it. Tilt installs all dependencies, starts Postgres/Redis/MinIO, runs migrations, and launches every service — API, dashboard, agents, MCP, Inngest, Flutter client, and the docs site. Open the Tilt UI at `http://localhost:10350` to watch logs and manage resources.
 
-**Or manually** — run each in a separate terminal:
+## 3. Seed the database
 
-```bash
-cd server/packages/api && bun run dev                    # API on :3000
-cd server/packages/dashboard && bun run dev              # Dashboard on :3001
-cd models/agents && go run .                             # Agents on :3020
-cd models/mcp && go run .                                # MCP on :3021
-npx inngest-cli@latest dev -u http://localhost:3020/api/inngest  # Job queue
-cd client && flutter run -d chrome                       # Flutter client
-```
+In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
 
 ## Health checks
 
@@ -92,3 +55,16 @@ GET http://localhost:3000/health   # API
 GET http://localhost:3020/health   # Agents
 GET http://localhost:3021/health   # MCP
 ```
+
+## S3 config details
+
+Default local dev uses MinIO from `docker-compose.yaml`. The `.env.example` files ship with working defaults:
+
+- `S3_ACCESS_KEY_ID=minioadmin`
+- `S3_SECRET_ACCESS_KEY=minioadmin`
+- `S3_BUCKET=arcnem-vision`
+- `S3_ENDPOINT=http://localhost:9000`
+- `S3_REGION=us-east-1`
+- `S3_USE_PATH_STYLE=true` (agents only)
+
+For hosted storage, substitute your AWS S3, Cloudflare R2, Railway Object Storage, or Backblaze B2 credentials.
