@@ -196,24 +196,6 @@ curl -X POST http://localhost:3000/api/uploads/ack \
 
 After step 3, Inngest fires `document/process.upload`. The agent graph takes it from there — CLIP embedding, description generation, vector indexing. Done.
 
-## Useful Commands
-
-```bash
-# Database
-cd server/packages/db && bun run db:generate   # Generate migrations
-cd server/packages/db && bun run db:migrate    # Apply migrations
-cd server/packages/db && bun run db:studio     # Drizzle Studio UI
-cd server/packages/db && bun run db:seed       # Seed data
-
-# Go model generation (after schema changes)
-cd models/db && go run ./cmd/introspect
-
-# Linting
-cd server && bunx biome check packages         # TypeScript
-cd client && flutter analyze                   # Dart
-cd client && flutter test                      # Flutter tests
-```
-
 ## Requirements
 
 - Docker + Docker Compose

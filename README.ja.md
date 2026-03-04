@@ -196,24 +196,6 @@ curl -X POST http://localhost:3000/api/uploads/ack \
 
 ステップ3の後、Inngestが`document/process.upload`を発火。エージェントグラフがそこから引き継ぎ — CLIPエンベディング、説明文生成、ベクターインデックス作成。完了。
 
-## よく使うコマンド
-
-```bash
-# データベース
-cd server/packages/db && bun run db:generate   # マイグレーション生成
-cd server/packages/db && bun run db:migrate    # マイグレーション適用
-cd server/packages/db && bun run db:studio     # Drizzle Studio UI
-cd server/packages/db && bun run db:seed       # シードデータ
-
-# Goモデル生成（スキーマ変更後）
-cd models/db && go run ./cmd/introspect
-
-# リント
-cd server && bunx biome check packages         # TypeScript
-cd client && flutter analyze                   # Dart
-cd client && flutter test                      # Flutterテスト
-```
-
 ## 必要条件
 
 - Docker + Docker Compose
