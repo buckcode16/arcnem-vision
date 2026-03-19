@@ -1,3 +1,4 @@
+import { extname } from "node:path";
 import { createEnvVarGetter } from "@arcnem-vision/shared";
 import { S3Client } from "bun";
 import { sql } from "drizzle-orm";
@@ -44,53 +45,53 @@ const S3_ENV_VAR = {
 
 const getS3EnvVar = createEnvVarGetter(S3_ENV_VAR);
 
+type SeedDocumentInput = {
+	slug: string;
+	fileName: string;
+	description: string;
+};
+
 const seedDocumentInputs = [
 	{
-		slug: "invoice-q1",
-		imageUrl:
-			"https://dummyimage.com/1200x1600/ffffff/111111.png&text=Invoice+Q1",
+		slug: "mountain-vista",
+		fileName: "mountain-vista.jpg",
 		description:
-			"Invoice document with vendor header, line items, subtotal, tax, and total amount due.",
+			"Snowy mountain valley with rugged peaks, bright sky, and a broad view across the ridgeline.",
 	},
 	{
-		slug: "medical-intake",
-		imageUrl:
-			"https://dummyimage.com/1200x1600/ffffff/111111.png&text=Medical+Intake+Form",
+		slug: "vintage-car",
+		fileName: "vintage-car.jpg",
 		description:
-			"Medical intake form with patient demographics, checkbox symptoms, and provider signature area.",
+			"Low-angle photograph of a vintage black car parked on a city street with warm sepia tones.",
 	},
 	{
-		slug: "rental-application",
-		imageUrl:
-			"https://dummyimage.com/1200x1600/ffffff/111111.png&text=Rental+Application",
+		slug: "grazing-pigs",
+		fileName: "grazing-pigs.jpg",
 		description:
-			"Rental application containing applicant details, employment history, references, and consent section.",
+			"Two reddish-brown pigs grazing in bright green grass with a blue fence softly blurred behind them.",
 	},
-] as const;
+] as const satisfies ReadonlyArray<SeedDocumentInput>;
 
 const seedQualityReviewDocumentInputs = [
 	{
-		slug: "blurry-receipt",
-		imageUrl:
-			"https://dummyimage.com/1200x1600/f5f5dc/333333.png&text=Blurry+Receipt",
+		slug: "soft-focus-cat",
+		fileName: "soft-focus-cat.jpg",
 		description:
-			"Blurry photograph of a retail receipt with motion blur, partially legible line items and total.",
+			"Extreme close-up of a cat's nose with shallow depth of field that leaves most of the frame softly out of focus.",
 	},
 	{
-		slug: "sharp-passport",
-		imageUrl:
-			"https://dummyimage.com/1200x1600/e8f0fe/111111.png&text=Sharp+Passport+Scan",
+		slug: "sharp-puppy",
+		fileName: "sharp-puppy.jpg",
 		description:
-			"High-quality passport scan with clear photo, MRZ code, and all biographical fields legible.",
+			"Sharp, well-exposed portrait of a black puppy sitting on weathered wooden planks and looking up at the camera.",
 	},
 	{
-		slug: "dark-contract",
-		imageUrl:
-			"https://dummyimage.com/1200x1600/2a2a2a/888888.png&text=Underexposed+Contract",
+		slug: "washed-out-shoreline",
+		fileName: "washed-out-shoreline.jpg",
 		description:
-			"Underexposed photograph of a multi-page contract with poor lighting and low contrast text.",
+			"Hazy shoreline scene with rocks in the foreground, pale sky, and muted contrast across the water.",
 	},
-] as const;
+] as const satisfies ReadonlyArray<SeedDocumentInput>;
 
 type UploadedSeedDocument = {
 	slug: string;
@@ -100,6 +101,20 @@ type UploadedSeedDocument = {
 	sizeBytes: number;
 	lastModifiedAt: Date;
 	description: string;
+};
+
+const getSeedImageContentType = (fileName: string): string => {
+	switch (extname(fileName).toLowerCase()) {
+		case ".jpg":
+		case ".jpeg":
+			return "image/jpeg";
+		case ".png":
+			return "image/png";
+		case ".webp":
+			return "image/webp";
+		default:
+			throw new Error(`Unsupported seed image extension: ${fileName}`);
+	}
 };
 
 const hashApiKey = async (key: string): Promise<string> => {
@@ -148,36 +163,34 @@ const getSeedS3Client = (): { bucket: string; client: S3Client } => {
 
 const uploadSeedDocumentsToS3 = async (
 	s3Client: S3Client,
-	inputs: ReadonlyArray<{
-		slug: string;
-		imageUrl: string;
-		description: string;
-	}>,
+	inputs: ReadonlyArray<SeedDocumentInput>,
 	pathPrefix: string,
 ): Promise<UploadedSeedDocument[]> => {
 	return Promise.all(
 		inputs.map(async (seedDocumentInput) => {
-			const response = await fetch(seedDocumentInput.imageUrl);
-			if (!response.ok) {
+			const imageExtension = extname(seedDocumentInput.fileName).toLowerCase();
+			if (imageExtension.length === 0) {
 				throw new Error(
-					`Failed to fetch seed image (${response.status}): ${seedDocumentInput.imageUrl}`,
+					`Seed image is missing an extension: ${seedDocumentInput.fileName}`,
 				);
 			}
 
-			const headerContentType = response.headers
-				.get("content-type")
-				?.toLowerCase();
-			const sourceContentType = headerContentType?.startsWith("image/")
-				? headerContentType
-				: "image/png";
-			const sourceImage = Buffer.from(await response.arrayBuffer());
+			const sourceFile = Bun.file(
+				new URL(`./seed-images/${seedDocumentInput.fileName}`, import.meta.url),
+			);
+			if (!(await sourceFile.exists())) {
+				throw new Error(`Missing seed image: ${seedDocumentInput.fileName}`);
+			}
+
+			const sourceContentType =
+				sourceFile.type.trim().toLowerCase() ||
+				getSeedImageContentType(seedDocumentInput.fileName);
+			const sourceImage = Buffer.from(await sourceFile.arrayBuffer());
 			if (sourceImage.byteLength === 0) {
-				throw new Error(
-					`Fetched empty seed image: ${seedDocumentInput.imageUrl}`,
-				);
+				throw new Error(`Seed image is empty: ${seedDocumentInput.fileName}`);
 			}
 
-			const objectKey = `${pathPrefix}/${seedDocumentInput.slug}.png`;
+			const objectKey = `${pathPrefix}/${seedDocumentInput.slug}${imageExtension}`;
 			await Bun.write(s3Client.file(objectKey), sourceImage);
 			const stats = await s3Client.stat(objectKey);
 
@@ -1019,15 +1032,15 @@ const seed = async () => {
 
 		const runBaseTime = new Date(now.getTime() - 1000 * 60 * 10); // 10 min ago
 
-		// Run 1: sharp-passport → routed to GOOD worker (completed)
+		// Run 1: sharp-puppy → routed to GOOD worker (completed)
 		const goodRunStarted = new Date(runBaseTime.getTime());
 		const goodRunFinished = new Date(runBaseTime.getTime() + 1000 * 12); // 12s
 
-		const sharpPassportDoc = qrSeedDocumentsWithIds.find(
-			(d) => d.slug === "sharp-passport",
+		const sharpPuppyDoc = qrSeedDocumentsWithIds.find(
+			(d) => d.slug === "sharp-puppy",
 		);
-		if (!sharpPassportDoc)
-			throw new Error("Failed to find sharp-passport seed document");
+		if (!sharpPuppyDoc)
+			throw new Error("Failed to find sharp-puppy seed document");
 
 		const [goodRun] = await tx
 			.insert(agentGraphRuns)
@@ -1035,14 +1048,14 @@ const seed = async () => {
 				agentGraphId: qualityReviewGraph.id,
 				status: "completed",
 				initialState: JSON.stringify({
-					temp_url: `https://s3.example.com/${sharpPassportDoc.objectKey}`,
-					document_id: sharpPassportDoc.documentId,
+					temp_url: `https://s3.example.com/${sharpPuppyDoc.objectKey}`,
+					document_id: sharpPuppyDoc.documentId,
 				}),
 				finalState: JSON.stringify({
-					temp_url: `https://s3.example.com/${sharpPassportDoc.objectKey}`,
-					document_id: sharpPassportDoc.documentId,
+					temp_url: `https://s3.example.com/${sharpPuppyDoc.objectKey}`,
+					document_id: sharpPuppyDoc.documentId,
 					quality_review:
-						"The passport scan is sharp and well-lit with excellent contrast. All biographical fields, the photo, and the MRZ code are fully legible. The document is properly framed with no cropping issues. Minor JPEG compression artifacts are present but do not affect readability. Verdict: GOOD",
+						"The puppy portrait is sharp and evenly exposed with crisp fur detail around the face and clear catchlights in the eyes. Subject separation is strong, framing is intentional, and the wooden background adds texture without distracting from the subject. Minor vignette styling is present but does not reduce readability of the main subject. Verdict: GOOD",
 					routed_to: "image_quality_good_worker",
 				}),
 				startedAt: goodRunStarted,
@@ -1059,7 +1072,7 @@ const seed = async () => {
 				stateDelta: JSON.stringify({
 					routing_decision: "image_quality_good_worker",
 					reasoning:
-						"Image is a high-resolution passport scan with clear details. Routing to good-quality specialist.",
+						"Image is sharp, well-exposed, and clearly framed. Routing to good-quality specialist.",
 				}),
 				startedAt: new Date(goodRunStarted.getTime()),
 				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 3),
@@ -1070,7 +1083,7 @@ const seed = async () => {
 				stepOrder: 2,
 				stateDelta: JSON.stringify({
 					quality_review:
-						"The passport scan is sharp and well-lit with excellent contrast. All biographical fields, the photo, and the MRZ code are fully legible. The document is properly framed with no cropping issues. Minor JPEG compression artifacts are present but do not affect readability. Verdict: GOOD",
+						"The puppy portrait is sharp and evenly exposed with crisp fur detail around the face and clear catchlights in the eyes. Subject separation is strong, framing is intentional, and the wooden background adds texture without distracting from the subject. Minor vignette styling is present but does not reduce readability of the main subject. Verdict: GOOD",
 				}),
 				startedAt: new Date(goodRunStarted.getTime() + 1000 * 3),
 				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 9),
@@ -1088,15 +1101,15 @@ const seed = async () => {
 			},
 		]);
 
-		// Run 2: blurry-receipt → routed to BAD worker (completed)
+		// Run 2: soft-focus-cat → routed to BAD worker (completed)
 		const badRunStarted = new Date(runBaseTime.getTime() + 1000 * 30);
 		const badRunFinished = new Date(badRunStarted.getTime() + 1000 * 14);
 
-		const blurryReceiptDoc = qrSeedDocumentsWithIds.find(
-			(d) => d.slug === "blurry-receipt",
+		const softFocusCatDoc = qrSeedDocumentsWithIds.find(
+			(d) => d.slug === "soft-focus-cat",
 		);
-		if (!blurryReceiptDoc)
-			throw new Error("Failed to find blurry-receipt seed document");
+		if (!softFocusCatDoc)
+			throw new Error("Failed to find soft-focus-cat seed document");
 
 		const [badRun] = await tx
 			.insert(agentGraphRuns)
@@ -1104,14 +1117,14 @@ const seed = async () => {
 				agentGraphId: qualityReviewGraph.id,
 				status: "completed",
 				initialState: JSON.stringify({
-					temp_url: `https://s3.example.com/${blurryReceiptDoc.objectKey}`,
-					document_id: blurryReceiptDoc.documentId,
+					temp_url: `https://s3.example.com/${softFocusCatDoc.objectKey}`,
+					document_id: softFocusCatDoc.documentId,
 				}),
 				finalState: JSON.stringify({
-					temp_url: `https://s3.example.com/${blurryReceiptDoc.objectKey}`,
-					document_id: blurryReceiptDoc.documentId,
+					temp_url: `https://s3.example.com/${softFocusCatDoc.objectKey}`,
+					document_id: softFocusCatDoc.documentId,
 					quality_review:
-						"The receipt image suffers from significant motion blur making most line items illegible. Exposure is acceptable but the blur renders text unreadable beyond the store name. The total amount is partially obscured. Remediation: stabilize the device or use a flat surface, ensure adequate lighting, and retake at a closer distance with tap-to-focus enabled. Verdict: BAD",
+						"The cat close-up uses such a shallow depth of field that only the nose is sharply rendered while the rest of the frame falls off into blur. That makes the subject poorly documented for review or downstream extraction tasks. Remediation: step back slightly, increase depth of field, and ensure the full face stays in focus before capture. Verdict: BAD",
 					routed_to: "image_quality_bad_worker",
 				}),
 				startedAt: badRunStarted,
@@ -1128,7 +1141,7 @@ const seed = async () => {
 				stateDelta: JSON.stringify({
 					routing_decision: "image_quality_bad_worker",
 					reasoning:
-						"Image shows clear motion blur and poor legibility. Routing to bad-quality specialist.",
+						"Image has severe focus falloff and poor overall subject coverage. Routing to bad-quality specialist.",
 				}),
 				startedAt: new Date(badRunStarted.getTime()),
 				finishedAt: new Date(badRunStarted.getTime() + 1000 * 3),
@@ -1139,7 +1152,7 @@ const seed = async () => {
 				stepOrder: 2,
 				stateDelta: JSON.stringify({
 					quality_review:
-						"The receipt image suffers from significant motion blur making most line items illegible. Exposure is acceptable but the blur renders text unreadable beyond the store name. The total amount is partially obscured. Remediation: stabilize the device or use a flat surface, ensure adequate lighting, and retake at a closer distance with tap-to-focus enabled. Verdict: BAD",
+						"The cat close-up uses such a shallow depth of field that only the nose is sharply rendered while the rest of the frame falls off into blur. That makes the subject poorly documented for review or downstream extraction tasks. Remediation: step back slightly, increase depth of field, and ensure the full face stays in focus before capture. Verdict: BAD",
 				}),
 				startedAt: new Date(badRunStarted.getTime() + 1000 * 3),
 				finishedAt: new Date(badRunStarted.getTime() + 1000 * 11),
@@ -1157,72 +1170,75 @@ const seed = async () => {
 			},
 		]);
 
-		// Run 3: dark-contract → routed to BAD worker (completed)
-		const darkRunStarted = new Date(runBaseTime.getTime() + 1000 * 60);
-		const darkRunFinished = new Date(darkRunStarted.getTime() + 1000 * 15);
-
-		const darkContractDoc = qrSeedDocumentsWithIds.find(
-			(d) => d.slug === "dark-contract",
+		// Run 3: washed-out-shoreline → routed to BAD worker (completed)
+		const washedOutRunStarted = new Date(runBaseTime.getTime() + 1000 * 60);
+		const washedOutRunFinished = new Date(
+			washedOutRunStarted.getTime() + 1000 * 15,
 		);
-		if (!darkContractDoc)
-			throw new Error("Failed to find dark-contract seed document");
 
-		const [darkRun] = await tx
+		const washedOutShorelineDoc = qrSeedDocumentsWithIds.find(
+			(d) => d.slug === "washed-out-shoreline",
+		);
+		if (!washedOutShorelineDoc)
+			throw new Error("Failed to find washed-out-shoreline seed document");
+
+		const [washedOutRun] = await tx
 			.insert(agentGraphRuns)
 			.values({
 				agentGraphId: qualityReviewGraph.id,
 				status: "completed",
 				initialState: JSON.stringify({
-					temp_url: `https://s3.example.com/${darkContractDoc.objectKey}`,
-					document_id: darkContractDoc.documentId,
+					temp_url: `https://s3.example.com/${washedOutShorelineDoc.objectKey}`,
+					document_id: washedOutShorelineDoc.documentId,
 				}),
 				finalState: JSON.stringify({
-					temp_url: `https://s3.example.com/${darkContractDoc.objectKey}`,
-					document_id: darkContractDoc.documentId,
+					temp_url: `https://s3.example.com/${washedOutShorelineDoc.objectKey}`,
+					document_id: washedOutShorelineDoc.documentId,
 					quality_review:
-						"The contract photograph is severely underexposed with very low contrast between text and background. Most paragraphs are unreadable without significant post-processing. Page edges are partially cropped and there is noticeable perspective distortion. Remediation: use flash or move to a well-lit area, photograph each page flat on a contrasting surface, ensure all margins are visible, and consider using a document scanning app with auto-correction. Verdict: BAD",
+						"The shoreline image is washed out by haze and flat lighting, leaving weak separation between the rocks, water, and sky. Fine detail is muted and the overall scene lacks the contrast needed for reliable visual inspection. Remediation: retake in clearer light, reduce overexposure, and increase local contrast so subject boundaries remain distinct. Verdict: BAD",
 					routed_to: "image_quality_bad_worker",
 				}),
-				startedAt: darkRunStarted,
-				finishedAt: darkRunFinished,
+				startedAt: washedOutRunStarted,
+				finishedAt: washedOutRunFinished,
 			})
 			.returning({ id: agentGraphRuns.id });
-		if (!darkRun) throw new Error("Failed to create dark contract run");
+		if (!washedOutRun)
+			throw new Error("Failed to create washed-out shoreline run");
 
 		await tx.insert(agentGraphRunSteps).values([
 			{
-				runId: darkRun.id,
+				runId: washedOutRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 1,
 				stateDelta: JSON.stringify({
 					routing_decision: "image_quality_bad_worker",
 					reasoning:
-						"Image is severely underexposed with poor contrast and partial cropping. Routing to bad-quality specialist.",
+						"Image has low contrast, muted detail, and weak subject separation. Routing to bad-quality specialist.",
 				}),
-				startedAt: new Date(darkRunStarted.getTime()),
-				finishedAt: new Date(darkRunStarted.getTime() + 1000 * 4),
+				startedAt: new Date(washedOutRunStarted.getTime()),
+				finishedAt: new Date(washedOutRunStarted.getTime() + 1000 * 4),
 			},
 			{
-				runId: darkRun.id,
+				runId: washedOutRun.id,
 				nodeKey: "image_quality_bad_worker",
 				stepOrder: 2,
 				stateDelta: JSON.stringify({
 					quality_review:
-						"The contract photograph is severely underexposed with very low contrast between text and background. Most paragraphs are unreadable without significant post-processing. Page edges are partially cropped and there is noticeable perspective distortion. Remediation: use flash or move to a well-lit area, photograph each page flat on a contrasting surface, ensure all margins are visible, and consider using a document scanning app with auto-correction. Verdict: BAD",
+						"The shoreline image is washed out by haze and flat lighting, leaving weak separation between the rocks, water, and sky. Fine detail is muted and the overall scene lacks the contrast needed for reliable visual inspection. Remediation: retake in clearer light, reduce overexposure, and increase local contrast so subject boundaries remain distinct. Verdict: BAD",
 				}),
-				startedAt: new Date(darkRunStarted.getTime() + 1000 * 4),
-				finishedAt: new Date(darkRunStarted.getTime() + 1000 * 12),
+				startedAt: new Date(washedOutRunStarted.getTime() + 1000 * 4),
+				finishedAt: new Date(washedOutRunStarted.getTime() + 1000 * 12),
 			},
 			{
-				runId: darkRun.id,
+				runId: washedOutRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 3,
 				stateDelta: JSON.stringify({
 					decision: "FINISH",
 					routed_to: "image_quality_bad_worker",
 				}),
-				startedAt: new Date(darkRunStarted.getTime() + 1000 * 12),
-				finishedAt: new Date(darkRunStarted.getTime() + 1000 * 15),
+				startedAt: new Date(washedOutRunStarted.getTime() + 1000 * 12),
+				finishedAt: new Date(washedOutRunStarted.getTime() + 1000 * 15),
 			},
 		]);
 
@@ -1246,11 +1262,15 @@ const seed = async () => {
 			agentRuns: {
 				goodRun: {
 					id: goodRun.id,
-					document: "sharp-passport",
+					document: "sharp-puppy",
 					verdict: "GOOD",
 				},
-				badRun: { id: badRun.id, document: "blurry-receipt", verdict: "BAD" },
-				darkRun: { id: darkRun.id, document: "dark-contract", verdict: "BAD" },
+				badRun: { id: badRun.id, document: "soft-focus-cat", verdict: "BAD" },
+				washedOutRun: {
+					id: washedOutRun.id,
+					document: "washed-out-shoreline",
+					verdict: "BAD",
+				},
 			},
 		};
 	});
