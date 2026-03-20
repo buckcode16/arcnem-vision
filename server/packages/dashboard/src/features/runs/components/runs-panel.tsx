@@ -1,6 +1,6 @@
 import { useServerFn } from "@tanstack/react-start";
 import { Activity, ChevronDown, Clock, Zap } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -152,6 +152,11 @@ export function RunsPanel({
 	);
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+
+	useEffect(() => {
+		setRuns(initialData.runs);
+		setNextCursor(initialData.nextCursor);
+	}, [initialData.nextCursor, initialData.runs]);
 
 	const loadMore = async () => {
 		if (!nextCursor || loadingMore) return;

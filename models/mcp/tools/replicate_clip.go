@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -40,40 +39,20 @@ func runCLIPPrediction(ctx context.Context, input map[string]any) (map[string]an
 		return nil, fmt.Errorf("failed to marshal replicate request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(runCtx, http.MethodPost, clipPredictionURL, bytes.NewReader(body))
+	payload, err := doReplicateJSONRequest(
+		runCtx,
+		token,
+		http.MethodPost,
+		clipPredictionURL,
+		body,
+		clipPreferWaitSeconds,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build replicate request: %w", err)
+		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Prefer", "wait="+clipPreferWaitSeconds)
-
-	resp, err := http.DefaultClient.Do(req)
+	payload, err = waitForReplicatePrediction(runCtx, token, payload)
 	if err != nil {
-		return nil, fmt.Errorf("replicate request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read replicate response body: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("replicate request failed status=%d body=%s", resp.StatusCode, responsePreview(respBody))
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(respBody, &payload); err != nil {
-		return nil, fmt.Errorf("replicate returned non-json success status=%d body=%s: %w", resp.StatusCode, responsePreview(respBody), err)
-	}
-
-	if errVal, hasErr := payload["error"]; hasErr && errVal != nil {
-		return nil, fmt.Errorf("replicate prediction error: %v", errVal)
-	}
-
-	if status, _ := payload["status"].(string); status != "" && status != "succeeded" {
-		return nil, fmt.Errorf("replicate prediction did not succeed status=%q", status)
+		return nil, err
 	}
 
 	outputRaw, ok := payload["output"]

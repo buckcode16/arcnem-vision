@@ -28,7 +28,12 @@ func ProcessDocumentUpload(ctx context.Context, input inngestgo.Input[inputs.Pro
 	}
 
 	result, err := step.Run(ctx, "load-document-and-agent-graph", func(ctx context.Context) (*load.DocumentAndAgentGraph, error) {
-		return load.LoadDocumentAndAgentGraph(ctx, db, input.Event.Data.DocumentID)
+		return load.LoadDocumentAndAgentGraph(
+			ctx,
+			db,
+			input.Event.Data.DocumentID,
+			input.Event.Data.AgentGraphID,
+		)
 	})
 	if err != nil {
 		return nil, inngestgo.NoRetryError(fmt.Errorf("Failed to load document and agent graph %v", err))
@@ -40,6 +45,15 @@ func ProcessDocumentUpload(ctx context.Context, input inngestgo.Input[inputs.Pro
 		return nil, inngestgo.NoRetryError(fmt.Errorf("document payload was nil"))
 	}
 	if result.GraphSnapshot == nil || result.GraphSnapshot.AgentGraph == nil {
+		if input.Event.Data.AgentGraphID != nil {
+			return nil, inngestgo.NoRetryError(
+				fmt.Errorf(
+					"document %s could not access requested workflow %s",
+					input.Event.Data.DocumentID,
+					input.Event.Data.AgentGraphID,
+				),
+			)
+		}
 		return nil, inngestgo.NoRetryError(
 			fmt.Errorf("document %s has no workflow assigned", input.Event.Data.DocumentID),
 		)

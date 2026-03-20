@@ -51,21 +51,23 @@ ackUploadRouter.post("/uploads/ack", requireAPIKey, async (c) => {
 			id: presignedUploads.id,
 			bucket: presignedUploads.bucket,
 			objectKey: presignedUploads.objectKey,
-			organizationId: apikeys.organizationId,
-			projectId: apikeys.projectId,
-			deviceId: apikeys.deviceId,
+			organizationId: presignedUploads.organizationId,
+			projectId: presignedUploads.projectId,
+			deviceId: presignedUploads.deviceId,
 		})
-		.from(apikeys)
+		.from(presignedUploads)
 		.innerJoin(
-			presignedUploads,
+			apikeys,
 			and(
-				eq(presignedUploads.objectKey, objectKey),
-				eq(presignedUploads.deviceId, apikeys.deviceId),
+				eq(apikeys.organizationId, presignedUploads.organizationId),
+				eq(apikeys.projectId, presignedUploads.projectId),
+				eq(apikeys.deviceId, presignedUploads.deviceId),
 			),
 		)
 		.where(
 			and(
 				eq(apikeys.id, verifiedKey.id),
+				eq(presignedUploads.objectKey, objectKey),
 				eq(presignedUploads.status, "issued"),
 			),
 		)

@@ -310,6 +310,9 @@ export function DashboardPage({
 							<DocumentGalleryPanel
 								initialData={documents}
 								organizationId={dashboard.organization.id}
+								projects={dashboard.projects}
+								devices={dashboard.devices}
+								workflows={dashboard.workflows}
 							/>
 						) : (
 							<EmptyOrgCard message="Set up an organization to view documents." />

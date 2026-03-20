@@ -27,7 +27,9 @@ uploadRouter.post("/uploads/presign", requireAPIKey, async (c) => {
 	const dbClient = c.get("dbClient");
 	const [uploadTarget] = await dbClient
 		.select({
+			organizationId: organizations.id,
 			organizationSlug: organizations.slug,
+			projectId: projects.id,
 			projectSlug: projects.slug,
 			deviceSlug: devices.slug,
 			deviceId: devices.id,
@@ -108,6 +110,8 @@ uploadRouter.post("/uploads/presign", requireAPIKey, async (c) => {
 		.values({
 			bucket: S3_BUCKET,
 			objectKey,
+			organizationId: uploadTarget.organizationId,
+			projectId: uploadTarget.projectId,
 			deviceId: uploadTarget.deviceId,
 			status: "issued",
 		})

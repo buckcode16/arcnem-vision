@@ -97,6 +97,9 @@ function validateToolMapping(
 		);
 	}
 	for (const [field, value] of Object.entries(mapping)) {
+		if (mappingName === "input_mapping" && typeof value !== "string") {
+			continue;
+		}
 		if (typeof value !== "string") {
 			throw new Error(
 				`Tool node "${nodeKey}" mapping for "${field}" must be a string.`,

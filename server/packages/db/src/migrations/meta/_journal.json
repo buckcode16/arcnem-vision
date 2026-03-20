@@ -15,6 +15,13 @@
       "when": 1773973012224,
       "tag": "0001_lovely_skaar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773975195946,
+      "tag": "0002_far_quicksilver",
+      "breakpoints": true
     }
   ]
 }

@@ -218,7 +218,7 @@ func RegisterCreateDocumentSegmentation(server *mcp.Server) {
 
 		out := CreateDocumentSegmentationOutput{
 			SegmentationID: record.ID,
-			Result:         json.RawMessage(resultJSON),
+			Result:         persistedResult,
 		}
 		if segmentedDocumentID != "" {
 			out.SegmentedDocumentID = segmentedDocumentID

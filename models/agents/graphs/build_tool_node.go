@@ -17,8 +17,8 @@ const constPrefix = "_const:"
 // input_mapping/output_mapping in the node config to rename state keys.
 // Mapped values prefixed with "_const:" are treated as literal constants
 // (e.g. "_const:OPENAI" → the string "OPENAI"). Non-string input_mapping values
-// are passed through as literal JSON constants, which allows tool configs to
-// provide structured input such as objects or arrays.
+// are resolved recursively, which allows tool configs to provide structured
+// input such as objects or arrays that can still reference state keys.
 func BuildToolNode(snapshotNode *SnapshotNode, mcpClient *clients.MCPClient) (*NodeToAdd, error) {
 	if len(snapshotNode.Tools) != 1 {
 		return nil, fmt.Errorf("tool node %q requires exactly 1 tool, got %d", snapshotNode.Node.NodeKey, len(snapshotNode.Tools))
@@ -93,16 +93,37 @@ func BuildToolNode(snapshotNode *SnapshotNode, mcpClient *clients.MCPClient) (*N
 }
 
 func resolveToolInputMappingValue(mappingValue any, state map[string]any) (any, bool) {
-	mappedString, ok := mappingValue.(string)
-	if !ok {
+	switch value := mappingValue.(type) {
+	case string:
+		if strings.HasPrefix(value, constPrefix) {
+			return strings.TrimPrefix(value, constPrefix), true
+		}
+
+		resolved, exists := state[value]
+		return resolved, exists
+	case map[string]any:
+		resolved := make(map[string]any, len(value))
+		for key, item := range value {
+			next, ok := resolveToolInputMappingValue(item, state)
+			if !ok {
+				return nil, false
+			}
+			resolved[key] = next
+		}
+		return resolved, true
+	case []any:
+		resolved := make([]any, 0, len(value))
+		for _, item := range value {
+			next, ok := resolveToolInputMappingValue(item, state)
+			if !ok {
+				return nil, false
+			}
+			resolved = append(resolved, next)
+		}
+		return resolved, true
+	default:
 		return mappingValue, true
 	}
-	if strings.HasPrefix(mappedString, constPrefix) {
-		return strings.TrimPrefix(mappedString, constPrefix), true
-	}
-
-	value, exists := state[mappedString]
-	return value, exists
 }
 
 func decodeToolOutput(result *mcp.CallToolResult, outputFields []string) (map[string]any, error) {

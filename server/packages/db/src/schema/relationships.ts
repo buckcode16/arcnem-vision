@@ -83,6 +83,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
 	projects: many(projects),
 	devices: many(devices),
 	documents: many(documents),
+	presignedUploads: many(presignedUploads),
 	agentGraphTemplates: many(agentGraphTemplates),
 	agentGraphs: many(agentGraphs),
 }));
@@ -117,6 +118,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 	devices: many(devices),
 	apikeys: many(apikeys),
 	documents: many(documents),
+	presignedUploads: many(presignedUploads),
 }));
 
 export const devicesRelations = relations(devices, ({ one, many }) => ({
@@ -163,6 +165,14 @@ export const documentsRelations = relations(documents, ({ one, many }) => ({
 export const presignedUploadsRelations = relations(
 	presignedUploads,
 	({ one }) => ({
+		organizations: one(organizations, {
+			fields: [presignedUploads.organizationId],
+			references: [organizations.id],
+		}),
+		projects: one(projects, {
+			fields: [presignedUploads.projectId],
+			references: [projects.id],
+		}),
 		devices: one(devices, {
 			fields: [presignedUploads.deviceId],
 			references: [devices.id],

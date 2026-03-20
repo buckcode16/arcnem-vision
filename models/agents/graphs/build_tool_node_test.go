@@ -74,7 +74,7 @@ func TestResolveToolInputMappingValue_ObjectLiteral(t *testing.T) {
 	}
 
 	got, ok := resolveToolInputMappingValue(map[string]any{
-		"text_prompt": "passport",
+		"text_prompt": "_const:passport",
 		"threshold":   0.5,
 	}, state)
 	if !ok {
@@ -84,6 +84,28 @@ func TestResolveToolInputMappingValue_ObjectLiteral(t *testing.T) {
 	want := map[string]any{
 		"text_prompt": "passport",
 		"threshold":   0.5,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestResolveToolInputMappingValue_NestedStateLookup(t *testing.T) {
+	state := map[string]any{
+		"segmentation_prompt": "rocky shoreline",
+	}
+
+	got, ok := resolveToolInputMappingValue(map[string]any{
+		"text_prompt": "segmentation_prompt",
+		"mode":        "_const:fast",
+	}, state)
+	if !ok {
+		t.Fatal("expected nested state lookup to resolve")
+	}
+
+	want := map[string]any{
+		"text_prompt": "rocky shoreline",
+		"mode":        "fast",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected %v, got %v", want, got)

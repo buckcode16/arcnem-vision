@@ -128,6 +128,9 @@ export function validateCanvasGraph({
 					return `Tool node ${normalized} ${mappingName} must be an object.`;
 				}
 				for (const value of Object.values(mapping)) {
+					if (mappingName === "input_mapping" && typeof value !== "string") {
+						continue;
+					}
 					if (typeof value !== "string" || value.trim().length === 0) {
 						return `Tool node ${normalized} has an invalid ${mappingName} value.`;
 					}

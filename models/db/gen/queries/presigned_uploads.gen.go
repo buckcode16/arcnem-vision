@@ -34,6 +34,8 @@ func newPresignedUpload(db *gorm.DB, opts ...gen.DOOption) presignedUpload {
 	_presignedUpload.Status = field.NewString(tableName, "status")
 	_presignedUpload.CreatedAt = field.NewTime(tableName, "created_at")
 	_presignedUpload.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_presignedUpload.OrganizationID = field.NewString(tableName, "organization_id")
+	_presignedUpload.ProjectID = field.NewString(tableName, "project_id")
 
 	_presignedUpload.fillFieldMap()
 
@@ -43,14 +45,16 @@ func newPresignedUpload(db *gorm.DB, opts ...gen.DOOption) presignedUpload {
 type presignedUpload struct {
 	presignedUploadDo presignedUploadDo
 
-	ALL       field.Asterisk
-	ID        field.String
-	Bucket    field.String
-	ObjectKey field.String
-	DeviceID  field.String
-	Status    field.String
-	CreatedAt field.Time
-	UpdatedAt field.Time
+	ALL            field.Asterisk
+	ID             field.String
+	Bucket         field.String
+	ObjectKey      field.String
+	DeviceID       field.String
+	Status         field.String
+	CreatedAt      field.Time
+	UpdatedAt      field.Time
+	OrganizationID field.String
+	ProjectID      field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -74,6 +78,8 @@ func (p *presignedUpload) updateTableName(table string) *presignedUpload {
 	p.Status = field.NewString(table, "status")
 	p.CreatedAt = field.NewTime(table, "created_at")
 	p.UpdatedAt = field.NewTime(table, "updated_at")
+	p.OrganizationID = field.NewString(table, "organization_id")
+	p.ProjectID = field.NewString(table, "project_id")
 
 	p.fillFieldMap()
 
@@ -102,7 +108,7 @@ func (p *presignedUpload) GetFieldByName(fieldName string) (field.OrderExpr, boo
 }
 
 func (p *presignedUpload) fillFieldMap() {
-	p.fieldMap = make(map[string]field.Expr, 7)
+	p.fieldMap = make(map[string]field.Expr, 9)
 	p.fieldMap["id"] = p.ID
 	p.fieldMap["bucket"] = p.Bucket
 	p.fieldMap["object_key"] = p.ObjectKey
@@ -110,6 +116,8 @@ func (p *presignedUpload) fillFieldMap() {
 	p.fieldMap["status"] = p.Status
 	p.fieldMap["created_at"] = p.CreatedAt
 	p.fieldMap["updated_at"] = p.UpdatedAt
+	p.fieldMap["organization_id"] = p.OrganizationID
+	p.fieldMap["project_id"] = p.ProjectID
 }
 
 func (p presignedUpload) clone(db *gorm.DB) presignedUpload {

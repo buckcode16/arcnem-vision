@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	replicatePredictionRequestTimeout = 90 * time.Second
+	replicatePredictionRequestTimeout = 3 * time.Minute
 	replicatePreferWaitSeconds        = "60"
+	replicatePredictionPollInterval   = 1500 * time.Millisecond
 )
 
 func runReplicateVersionedPrediction(ctx context.Context, modelName string, version string, input map[string]any) (any, error) {
@@ -52,13 +53,90 @@ func runReplicateVersionedPrediction(ctx context.Context, modelName string, vers
 		url.PathEscape(modelSlug),
 		url.PathEscape(strings.TrimSpace(version)),
 	)
-	req, err := http.NewRequestWithContext(runCtx, http.MethodPost, predictionURL, bytes.NewReader(body))
+	payload, err := doReplicateJSONRequest(
+		runCtx,
+		token,
+		http.MethodPost,
+		predictionURL,
+		body,
+		replicatePreferWaitSeconds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	payload, err = waitForReplicatePrediction(runCtx, token, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	outputRaw, ok := payload["output"]
+	if !ok {
+		return nil, fmt.Errorf("replicate response missing output")
+	}
+
+	return outputRaw, nil
+}
+
+func waitForReplicatePrediction(ctx context.Context, token string, payload map[string]any) (map[string]any, error) {
+	for {
+		if errVal, hasErr := payload["error"]; hasErr && errVal != nil {
+			return nil, fmt.Errorf("replicate prediction error: %v", errVal)
+		}
+
+		status := strings.TrimSpace(asString(payload["status"]))
+		switch status {
+		case "", "succeeded":
+			return payload, nil
+		case "starting", "processing", "queued":
+			pollURL := replicatePredictionPollURL(payload)
+			if pollURL == "" {
+				return nil, fmt.Errorf("replicate prediction status=%q but response is missing a poll url", status)
+			}
+
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("replicate prediction polling timed out while status=%q: %w", status, ctx.Err())
+			case <-time.After(replicatePredictionPollInterval):
+			}
+
+			nextPayload, err := doReplicateJSONRequest(ctx, token, http.MethodGet, pollURL, nil, "")
+			if err != nil {
+				return nil, err
+			}
+			payload = nextPayload
+		case "failed", "canceled", "cancelled":
+			if errVal, hasErr := payload["error"]; hasErr && errVal != nil {
+				return nil, fmt.Errorf("replicate prediction %s: %v", status, errVal)
+			}
+			return nil, fmt.Errorf("replicate prediction did not succeed status=%q", status)
+		default:
+			return nil, fmt.Errorf("replicate prediction did not succeed status=%q", status)
+		}
+	}
+}
+
+func doReplicateJSONRequest(
+	ctx context.Context,
+	token string,
+	method string,
+	requestURL string,
+	body []byte,
+	preferWaitSeconds string,
+) (map[string]any, error) {
+	var requestBody io.Reader
+	if len(body) > 0 {
+		requestBody = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build replicate request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Prefer", "wait="+replicatePreferWaitSeconds)
+	if preferWaitSeconds != "" {
+		req.Header.Set("Prefer", "wait="+preferWaitSeconds)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -80,20 +158,29 @@ func runReplicateVersionedPrediction(ctx context.Context, modelName string, vers
 		return nil, fmt.Errorf("replicate returned non-json success status=%d body=%s: %w", resp.StatusCode, responsePreview(respBody), err)
 	}
 
-	if errVal, hasErr := payload["error"]; hasErr && errVal != nil {
-		return nil, fmt.Errorf("replicate prediction error: %v", errVal)
+	return payload, nil
+}
+
+func replicatePredictionPollURL(payload map[string]any) string {
+	if urls, ok := payload["urls"].(map[string]any); ok {
+		if getURL := strings.TrimSpace(asString(urls["get"])); getURL != "" {
+			return getURL
+		}
 	}
 
-	if status, _ := payload["status"].(string); status != "" && status != "succeeded" {
-		return nil, fmt.Errorf("replicate prediction did not succeed status=%q", status)
+	predictionID := strings.TrimSpace(asString(payload["id"]))
+	if predictionID == "" {
+		return ""
 	}
 
-	outputRaw, ok := payload["output"]
-	if !ok {
-		return nil, fmt.Errorf("replicate response missing output")
-	}
+	return "https://api.replicate.com/v1/predictions/" + url.PathEscape(predictionID)
+}
 
-	return outputRaw, nil
+func asString(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return ""
 }
 
 func normalizeReplicateInput(input map[string]any) (map[string]any, error) {

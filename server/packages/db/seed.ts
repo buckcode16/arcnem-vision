@@ -482,7 +482,7 @@ const seed = async () => {
 			.values({
 				name: "create_document_description",
 				description: "Save an LLM-generated text description for a document.",
-				inputSchema: JSON.stringify({
+				inputSchema: {
 					type: "object",
 					properties: {
 						document_id: { type: "string" },
@@ -498,14 +498,14 @@ const seed = async () => {
 						"model_name",
 						"model_version",
 					],
-				}),
-				outputSchema: JSON.stringify({
+				},
+				outputSchema: {
 					type: "object",
 					properties: {
 						description_id: { type: "string" },
 						text: { type: "string" },
 					},
-				}),
+				},
 			})
 			.returning({ id: tools.id });
 		if (!createDocDescTool)
@@ -517,20 +517,20 @@ const seed = async () => {
 				name: "create_document_embedding",
 				description:
 					"Generate a CLIP embedding for a document image and save it to the database.",
-				inputSchema: JSON.stringify({
+				inputSchema: {
 					type: "object",
 					properties: {
 						document_id: { type: "string" },
 						temp_url: { type: "string" },
 					},
 					required: ["document_id", "temp_url"],
-				}),
-				outputSchema: JSON.stringify({
+				},
+				outputSchema: {
 					type: "object",
 					properties: {
 						embedding_id: { type: "string" },
 					},
-				}),
+				},
 			})
 			.returning({ id: tools.id });
 		if (!createDocEmbTool)
@@ -542,7 +542,7 @@ const seed = async () => {
 				name: "create_document_segmentation",
 				description:
 					"Generate a document segmentation, persist the result payload, and store any derived segmented image as a document.",
-				inputSchema: JSON.stringify({
+				inputSchema: {
 					type: "object",
 					properties: {
 						document_id: { type: "string" },
@@ -559,8 +559,8 @@ const seed = async () => {
 						"model_name",
 						"model_version",
 					],
-				}),
-				outputSchema: JSON.stringify({
+				},
+				outputSchema: {
 					type: "object",
 					properties: {
 						segmentation_id: { type: "string" },
@@ -572,7 +572,7 @@ const seed = async () => {
 						},
 						result: {},
 					},
-				}),
+				},
 			})
 			.returning({ id: tools.id });
 		if (!createDocSegTool)
@@ -584,20 +584,20 @@ const seed = async () => {
 				name: "create_description_embedding",
 				description:
 					"Generate a CLIP text embedding for a document description and save it to the database.",
-				inputSchema: JSON.stringify({
+				inputSchema: {
 					type: "object",
 					properties: {
 						document_description_id: { type: "string" },
 						text: { type: "string" },
 					},
 					required: ["document_description_id", "text"],
-				}),
-				outputSchema: JSON.stringify({
+				},
+				outputSchema: {
 					type: "object",
 					properties: {
 						embedding_id: { type: "string" },
 					},
-				}),
+				},
 			})
 			.returning({ id: tools.id });
 		if (!createDescEmbTool)
@@ -609,14 +609,14 @@ const seed = async () => {
 				name: "find_similar_documents",
 				description:
 					"Find documents with similar CLIP embeddings using cosine distance.",
-				inputSchema: JSON.stringify({
+				inputSchema: {
 					type: "object",
 					properties: {
 						document_id: { type: "string" },
 					},
 					required: ["document_id"],
-				}),
-				outputSchema: JSON.stringify({
+				},
+				outputSchema: {
 					type: "object",
 					properties: {
 						matches: {
@@ -630,7 +630,7 @@ const seed = async () => {
 							},
 						},
 					},
-				}),
+				},
 			})
 			.returning({ id: tools.id });
 		if (!findSimilarDocsTool)
@@ -642,14 +642,14 @@ const seed = async () => {
 				name: "find_similar_descriptions",
 				description:
 					"Find document descriptions with similar CLIP embeddings using cosine distance.",
-				inputSchema: JSON.stringify({
+				inputSchema: {
 					type: "object",
 					properties: {
 						document_description_id: { type: "string" },
 					},
 					required: ["document_description_id"],
-				}),
-				outputSchema: JSON.stringify({
+				},
+				outputSchema: {
 					type: "object",
 					properties: {
 						matches: {
@@ -663,7 +663,7 @@ const seed = async () => {
 							},
 						},
 					},
-				}),
+				},
 			})
 			.returning({ id: tools.id });
 		if (!findSimilarDescsTool)
@@ -692,14 +692,14 @@ const seed = async () => {
 				nodeType: "worker",
 				inputKey: "temp_url",
 				outputKey: "description",
-				config: JSON.stringify({
+				config: {
 					system_message:
 						"You are a document analysis assistant. Given an image URL of a document, return one concise plain-text paragraph describing key contents, layout, and any visible text. Keep the output to 50 words max (about 320 characters), and do not include markdown, bullet points, or URLs.",
 					max_iterations: 3,
 					input_mode: "image_url",
 					input_prompt:
 						"Describe this document image in one concise paragraph (max 50 words). Focus on layout, key text, and visual elements.",
-				}),
+				},
 				agentGraphId: pipelineGraph.id,
 				modelId: gpt41MiniModel.id,
 			})
@@ -712,7 +712,7 @@ const seed = async () => {
 			.values({
 				nodeKey: "save_description",
 				nodeType: "tool",
-				config: JSON.stringify({
+				config: {
 					input_mapping: {
 						text: "description",
 						model_provider: "_const:OPENAI",
@@ -722,7 +722,7 @@ const seed = async () => {
 					output_mapping: {
 						description_id: "document_description_id",
 					},
-				}),
+				},
 				agentGraphId: pipelineGraph.id,
 			})
 			.returning({ id: agentGraphNodes.id });
@@ -735,7 +735,7 @@ const seed = async () => {
 			.values({
 				nodeKey: "embed_document",
 				nodeType: "tool",
-				config: JSON.stringify({}),
+				config: {},
 				agentGraphId: pipelineGraph.id,
 			})
 			.returning({ id: agentGraphNodes.id });
@@ -747,12 +747,12 @@ const seed = async () => {
 			.values({
 				nodeKey: "embed_description",
 				nodeType: "tool",
-				config: JSON.stringify({
+				config: {
 					input_mapping: {
 						text: "description",
 						document_description_id: "document_description_id",
 					},
-				}),
+				},
 				agentGraphId: pipelineGraph.id,
 			})
 			.returning({ id: agentGraphNodes.id });
@@ -765,7 +765,7 @@ const seed = async () => {
 			.values({
 				nodeKey: "find_similar_docs",
 				nodeType: "tool",
-				config: JSON.stringify({}),
+				config: {},
 				agentGraphId: pipelineGraph.id,
 			})
 			.returning({ id: agentGraphNodes.id });
@@ -778,7 +778,7 @@ const seed = async () => {
 			.values({
 				nodeKey: "find_similar_descs",
 				nodeType: "tool",
-				config: JSON.stringify({}),
+				config: {},
 				agentGraphId: pipelineGraph.id,
 			})
 			.returning({ id: agentGraphNodes.id });
@@ -998,11 +998,11 @@ const seed = async () => {
 			.values({
 				nodeKey: "image_quality_good_worker",
 				nodeType: "worker",
-				config: JSON.stringify({
+				config: {
 					system_message:
 						"You are the GOOD image-quality specialist. Use this route only when the image quality is acceptable for downstream document analysis. Given an image URL, explain in detail why the image is good enough. Cover sharpness/focus, exposure and contrast, framing/cropping, legibility of text, noise/compression artifacts, and whether the full document content appears captured. Mention minor flaws if present, but keep the final judgment clearly positive. End with a one-line verdict that starts with 'Verdict: GOOD'.",
 					max_iterations: 4,
-				}),
+				},
 				agentGraphId: qualityReviewGraph.id,
 				modelId: gpt41MiniModel.id,
 			})
@@ -1015,11 +1015,11 @@ const seed = async () => {
 			.values({
 				nodeKey: "image_quality_bad_worker",
 				nodeType: "worker",
-				config: JSON.stringify({
+				config: {
 					system_message:
 						"You are the BAD image-quality specialist. Use this route only when the image quality is not acceptable for downstream document analysis. Given an image URL, explain in detail why the image is bad. Be specific about failure points such as blur, motion blur, poor exposure, glare, cropping, skew/perspective distortion, low resolution, illegible text, and compression artifacts. Include concrete remediation steps so the user can retake the image successfully. End with a one-line verdict that starts with 'Verdict: BAD'.",
 					max_iterations: 4,
-				}),
+				},
 				agentGraphId: qualityReviewGraph.id,
 				modelId: gpt41MiniModel.id,
 			})
@@ -1034,13 +1034,13 @@ const seed = async () => {
 				nodeType: "supervisor",
 				inputKey: "temp_url",
 				outputKey: "quality_review",
-				config: JSON.stringify({
+				config: {
 					members: ["image_quality_good_worker", "image_quality_bad_worker"],
 					input_mode: "image_url",
 					input_prompt:
 						"Route this image to exactly one specialist based on quality. After that specialist responds, finish.",
 					max_iterations: 10,
-				}),
+				},
 				agentGraphId: qualityReviewGraph.id,
 				modelId: gpt41MiniModel.id,
 			})
@@ -1210,17 +1210,17 @@ const seed = async () => {
 			.values({
 				agentGraphId: qualityReviewGraph.id,
 				status: "completed",
-				initialState: JSON.stringify({
+				initialState: {
 					temp_url: `https://s3.example.com/${sharpPuppyDoc.objectKey}`,
 					document_id: sharpPuppyDoc.documentId,
-				}),
-				finalState: JSON.stringify({
+				},
+				finalState: {
 					temp_url: `https://s3.example.com/${sharpPuppyDoc.objectKey}`,
 					document_id: sharpPuppyDoc.documentId,
 					quality_review:
 						"The puppy portrait is sharp and evenly exposed with crisp fur detail around the face and clear catchlights in the eyes. Subject separation is strong, framing is intentional, and the wooden background adds texture without distracting from the subject. Minor vignette styling is present but does not reduce readability of the main subject. Verdict: GOOD",
 					routed_to: "image_quality_good_worker",
-				}),
+				},
 				startedAt: goodRunStarted,
 				finishedAt: goodRunFinished,
 			})
@@ -1232,11 +1232,11 @@ const seed = async () => {
 				runId: goodRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 1,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					routing_decision: "image_quality_good_worker",
 					reasoning:
 						"Image is sharp, well-exposed, and clearly framed. Routing to good-quality specialist.",
-				}),
+				},
 				startedAt: new Date(goodRunStarted.getTime()),
 				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 3),
 			},
@@ -1244,10 +1244,10 @@ const seed = async () => {
 				runId: goodRun.id,
 				nodeKey: "image_quality_good_worker",
 				stepOrder: 2,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					quality_review:
 						"The puppy portrait is sharp and evenly exposed with crisp fur detail around the face and clear catchlights in the eyes. Subject separation is strong, framing is intentional, and the wooden background adds texture without distracting from the subject. Minor vignette styling is present but does not reduce readability of the main subject. Verdict: GOOD",
-				}),
+				},
 				startedAt: new Date(goodRunStarted.getTime() + 1000 * 3),
 				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 9),
 			},
@@ -1255,10 +1255,10 @@ const seed = async () => {
 				runId: goodRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 3,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					decision: "FINISH",
 					routed_to: "image_quality_good_worker",
-				}),
+				},
 				startedAt: new Date(goodRunStarted.getTime() + 1000 * 9),
 				finishedAt: new Date(goodRunStarted.getTime() + 1000 * 12),
 			},
@@ -1279,17 +1279,17 @@ const seed = async () => {
 			.values({
 				agentGraphId: qualityReviewGraph.id,
 				status: "completed",
-				initialState: JSON.stringify({
+				initialState: {
 					temp_url: `https://s3.example.com/${softFocusCatDoc.objectKey}`,
 					document_id: softFocusCatDoc.documentId,
-				}),
-				finalState: JSON.stringify({
+				},
+				finalState: {
 					temp_url: `https://s3.example.com/${softFocusCatDoc.objectKey}`,
 					document_id: softFocusCatDoc.documentId,
 					quality_review:
 						"The cat close-up uses such a shallow depth of field that only the nose is sharply rendered while the rest of the frame falls off into blur. That makes the subject poorly documented for review or downstream extraction tasks. Remediation: step back slightly, increase depth of field, and ensure the full face stays in focus before capture. Verdict: BAD",
 					routed_to: "image_quality_bad_worker",
-				}),
+				},
 				startedAt: badRunStarted,
 				finishedAt: badRunFinished,
 			})
@@ -1301,11 +1301,11 @@ const seed = async () => {
 				runId: badRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 1,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					routing_decision: "image_quality_bad_worker",
 					reasoning:
 						"Image has severe focus falloff and poor overall subject coverage. Routing to bad-quality specialist.",
-				}),
+				},
 				startedAt: new Date(badRunStarted.getTime()),
 				finishedAt: new Date(badRunStarted.getTime() + 1000 * 3),
 			},
@@ -1313,10 +1313,10 @@ const seed = async () => {
 				runId: badRun.id,
 				nodeKey: "image_quality_bad_worker",
 				stepOrder: 2,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					quality_review:
 						"The cat close-up uses such a shallow depth of field that only the nose is sharply rendered while the rest of the frame falls off into blur. That makes the subject poorly documented for review or downstream extraction tasks. Remediation: step back slightly, increase depth of field, and ensure the full face stays in focus before capture. Verdict: BAD",
-				}),
+				},
 				startedAt: new Date(badRunStarted.getTime() + 1000 * 3),
 				finishedAt: new Date(badRunStarted.getTime() + 1000 * 11),
 			},
@@ -1324,10 +1324,10 @@ const seed = async () => {
 				runId: badRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 3,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					decision: "FINISH",
 					routed_to: "image_quality_bad_worker",
-				}),
+				},
 				startedAt: new Date(badRunStarted.getTime() + 1000 * 11),
 				finishedAt: new Date(badRunStarted.getTime() + 1000 * 14),
 			},
@@ -1350,17 +1350,17 @@ const seed = async () => {
 			.values({
 				agentGraphId: qualityReviewGraph.id,
 				status: "completed",
-				initialState: JSON.stringify({
+				initialState: {
 					temp_url: `https://s3.example.com/${washedOutShorelineDoc.objectKey}`,
 					document_id: washedOutShorelineDoc.documentId,
-				}),
-				finalState: JSON.stringify({
+				},
+				finalState: {
 					temp_url: `https://s3.example.com/${washedOutShorelineDoc.objectKey}`,
 					document_id: washedOutShorelineDoc.documentId,
 					quality_review:
 						"The shoreline image is washed out by haze and flat lighting, leaving weak separation between the rocks, water, and sky. Fine detail is muted and the overall scene lacks the contrast needed for reliable visual inspection. Remediation: retake in clearer light, reduce overexposure, and increase local contrast so subject boundaries remain distinct. Verdict: BAD",
 					routed_to: "image_quality_bad_worker",
-				}),
+				},
 				startedAt: washedOutRunStarted,
 				finishedAt: washedOutRunFinished,
 			})
@@ -1373,11 +1373,11 @@ const seed = async () => {
 				runId: washedOutRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 1,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					routing_decision: "image_quality_bad_worker",
 					reasoning:
 						"Image has low contrast, muted detail, and weak subject separation. Routing to bad-quality specialist.",
-				}),
+				},
 				startedAt: new Date(washedOutRunStarted.getTime()),
 				finishedAt: new Date(washedOutRunStarted.getTime() + 1000 * 4),
 			},
@@ -1385,10 +1385,10 @@ const seed = async () => {
 				runId: washedOutRun.id,
 				nodeKey: "image_quality_bad_worker",
 				stepOrder: 2,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					quality_review:
 						"The shoreline image is washed out by haze and flat lighting, leaving weak separation between the rocks, water, and sky. Fine detail is muted and the overall scene lacks the contrast needed for reliable visual inspection. Remediation: retake in clearer light, reduce overexposure, and increase local contrast so subject boundaries remain distinct. Verdict: BAD",
-				}),
+				},
 				startedAt: new Date(washedOutRunStarted.getTime() + 1000 * 4),
 				finishedAt: new Date(washedOutRunStarted.getTime() + 1000 * 12),
 			},
@@ -1396,10 +1396,10 @@ const seed = async () => {
 				runId: washedOutRun.id,
 				nodeKey: "quality_review_supervisor",
 				stepOrder: 3,
-				stateDelta: JSON.stringify({
+				stateDelta: {
 					decision: "FINISH",
 					routed_to: "image_quality_bad_worker",
-				}),
+				},
 				startedAt: new Date(washedOutRunStarted.getTime() + 1000 * 12),
 				finishedAt: new Date(washedOutRunStarted.getTime() + 1000 * 15),
 			},
@@ -1412,8 +1412,8 @@ const seed = async () => {
 			.values({
 				name: "Document Segmentation Showcase",
 				description:
-					"Runs both semantic and language-prompted segmentation models and summarizes their derived outputs.",
-				entryNode: "semantic_segment",
+					"Generates a short prompt from the image, runs prompt-based segmentation, and summarizes the derived output.",
+				entryNode: "suggest_segment_prompt",
 				organizationId: organization.id,
 			})
 			.returning({ id: agentGraphs.id });
@@ -1421,52 +1421,27 @@ const seed = async () => {
 			throw new Error("Failed to create segmentation agent graph");
 		}
 
-		const [semanticSegmentNode] = await tx
+		const [suggestSegmentPromptNode] = await tx
 			.insert(agentGraphNodes)
 			.values({
-				nodeKey: "semantic_segment",
-				nodeType: "tool",
-				config: JSON.stringify({
-					input_mapping: {
-						model_provider: "_const:REPLICATE",
-						model_name: "_const:cjwbw/semantic-segment-anything",
-						model_version: `_const:${semanticSegmentAnythingVersion}`,
-					},
-					output_mapping: {
-						segmentation_id: "semantic_segmentation_id",
-						segmented_document_id: "semantic_segmented_document_id",
-						segmented_temp_url: "semantic_segmented_temp_url",
-						result: "semantic_segmentation_result",
-					},
-				}),
-				agentGraphId: segmentationGraph.id,
-			})
-			.returning({ id: agentGraphNodes.id });
-		if (!semanticSegmentNode) {
-			throw new Error("Failed to create semantic_segment node");
-		}
-
-		const [describeSemanticNode] = await tx
-			.insert(agentGraphNodes)
-			.values({
-				nodeKey: "describe_semantic_segment",
+				nodeKey: "suggest_segment_prompt",
 				nodeType: "worker",
-				inputKey: "semantic_segmented_temp_url",
-				outputKey: "semantic_segment_summary",
-				config: JSON.stringify({
+				inputKey: "temp_url",
+				outputKey: "segmentation_prompt",
+				config: {
 					system_message:
-						"You are a segmentation analyst. Given a segmented image, describe the highlighted regions and what scene structure the mask appears to isolate. Keep the response to one concise paragraph.",
-					max_iterations: 3,
+						"You create short segmentation prompts from images. Return only the most important visible subject as a concise noun phrase of one to four words. Do not add punctuation, explanations, or multiple options.",
+					max_iterations: 2,
 					input_mode: "image_url",
 					input_prompt:
-						"Describe the semantic segmentation image and the main regions it separates.",
-				}),
+						"Look at this image and return the single best subject to segment as a short noun phrase.",
+				},
 				agentGraphId: segmentationGraph.id,
 				modelId: gpt41MiniModel.id,
 			})
 			.returning({ id: agentGraphNodes.id });
-		if (!describeSemanticNode) {
-			throw new Error("Failed to create describe_semantic_segment node");
+		if (!suggestSegmentPromptNode) {
+			throw new Error("Failed to create suggest_segment_prompt node");
 		}
 
 		const [langSegmentNode] = await tx
@@ -1474,13 +1449,13 @@ const seed = async () => {
 			.values({
 				nodeKey: "lang_segment",
 				nodeType: "tool",
-				config: JSON.stringify({
+				config: {
 					input_mapping: {
 						model_provider: "_const:REPLICATE",
 						model_name: "_const:tmappdev/lang-segment-anything",
 						model_version: `_const:${langSegmentAnythingVersion}`,
 						input_params: {
-							text_prompt: "car",
+							text_prompt: "segmentation_prompt",
 						},
 					},
 					output_mapping: {
@@ -1489,7 +1464,7 @@ const seed = async () => {
 						segmented_temp_url: "lang_segmented_temp_url",
 						result: "lang_segmentation_result",
 					},
-				}),
+				},
 				agentGraphId: segmentationGraph.id,
 			})
 			.returning({ id: agentGraphNodes.id });
@@ -1504,14 +1479,14 @@ const seed = async () => {
 				nodeType: "worker",
 				inputKey: "lang_segmented_temp_url",
 				outputKey: "lang_segment_summary",
-				config: JSON.stringify({
+				config: {
 					system_message:
 						"You are a segmentation analyst. Given a prompt-driven segmented image, explain what object the mask appears to isolate and whether the result is plausible. Keep the response to one concise paragraph.",
 					max_iterations: 3,
 					input_mode: "image_url",
 					input_prompt:
 						"Describe the prompt-driven segmentation result and the object it isolates.",
-				}),
+				},
 				agentGraphId: segmentationGraph.id,
 				modelId: gpt41MiniModel.id,
 			})
@@ -1522,10 +1497,6 @@ const seed = async () => {
 
 		await tx.insert(agentGraphNodeTools).values([
 			{
-				agentGraphNodeId: semanticSegmentNode.id,
-				toolId: createDocSegTool.id,
-			},
-			{
 				agentGraphNodeId: langSegmentNode.id,
 				toolId: createDocSegTool.id,
 			},
@@ -1533,12 +1504,7 @@ const seed = async () => {
 
 		await tx.insert(agentGraphEdges).values([
 			{
-				fromNode: "semantic_segment",
-				toNode: "describe_semantic_segment",
-				agentGraphId: segmentationGraph.id,
-			},
-			{
-				fromNode: "describe_semantic_segment",
+				fromNode: "suggest_segment_prompt",
 				toNode: "lang_segment",
 				agentGraphId: segmentationGraph.id,
 			},

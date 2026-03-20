@@ -46,9 +46,7 @@ export const documents = pgTable(
 		projectId: uuid("project_id")
 			.notNull()
 			.references(() => projects.id, { onDelete: "cascade" }),
-		deviceId: uuid("device_id")
-			.notNull()
-			.references(() => devices.id),
+		deviceId: uuid("device_id").references(() => devices.id),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()
@@ -86,9 +84,13 @@ export const presignedUploads = pgTable(
 		id: uuid("id").primaryKey().default(sql`uuidv7()`),
 		bucket: text("bucket").notNull(),
 		objectKey: text("object_key").notNull(),
-		deviceId: uuid("device_id")
+		organizationId: uuid("organization_id")
 			.notNull()
-			.references(() => devices.id),
+			.references(() => organizations.id, { onDelete: "cascade" }),
+		projectId: uuid("project_id")
+			.notNull()
+			.references(() => projects.id, { onDelete: "cascade" }),
+		deviceId: uuid("device_id").references(() => devices.id),
 		status: text().notNull().default("issued"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
@@ -97,10 +99,9 @@ export const presignedUploads = pgTable(
 			.notNull(),
 	},
 	(table) => [
-		uniqueIndex("presigned_uploads_object_key_device_uidx").on(
-			table.objectKey,
-			table.deviceId,
-		),
+		uniqueIndex("presigned_uploads_object_key_uidx").on(table.objectKey),
+		index("presigned_uploads_organization_id_idx").on(table.organizationId),
+		index("presigned_uploads_project_id_idx").on(table.projectId),
 		index("presigned_uploads_status_created_at_idx").on(
 			table.status,
 			table.createdAt,
