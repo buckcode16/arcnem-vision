@@ -27,6 +27,7 @@ import {
 	documentDescriptionEmbeddings,
 	documentDescriptions,
 	documentEmbeddings,
+	documentSegmentations,
 	documents,
 	models,
 	presignedUploads,
@@ -151,6 +152,12 @@ export const documentsRelations = relations(documents, ({ one, many }) => ({
 	}),
 	documentEmbeddings: many(documentEmbeddings),
 	documentDescriptions: many(documentDescriptions),
+	sourceDocumentSegmentations: many(documentSegmentations, {
+		relationName: "source_document_segmentations",
+	}),
+	segmentedDocumentSegmentations: many(documentSegmentations, {
+		relationName: "segmented_document_segmentations",
+	}),
 }));
 
 export const presignedUploadsRelations = relations(
@@ -166,6 +173,7 @@ export const presignedUploadsRelations = relations(
 export const modelsRelations = relations(models, ({ many }) => ({
 	documentEmbeddings: many(documentEmbeddings),
 	documentDescriptions: many(documentDescriptions),
+	documentSegmentations: many(documentSegmentations),
 	documentDescriptionEmbeddings: many(documentDescriptionEmbeddings),
 	agentGraphTemplateNodes: many(agentGraphTemplateNodes),
 	agentGraphNodes: many(agentGraphNodes),
@@ -197,6 +205,26 @@ export const documentDescriptionsRelations = relations(
 			references: [models.id],
 		}),
 		documentDescriptionEmbeddings: many(documentDescriptionEmbeddings),
+	}),
+);
+
+export const documentSegmentationsRelations = relations(
+	documentSegmentations,
+	({ one }) => ({
+		sourceDocuments: one(documents, {
+			relationName: "source_document_segmentations",
+			fields: [documentSegmentations.sourceDocumentId],
+			references: [documents.id],
+		}),
+		segmentedDocuments: one(documents, {
+			relationName: "segmented_document_segmentations",
+			fields: [documentSegmentations.segmentedDocumentId],
+			references: [documents.id],
+		}),
+		models: one(models, {
+			fields: [documentSegmentations.modelId],
+			references: [models.id],
+		}),
 	}),
 );
 

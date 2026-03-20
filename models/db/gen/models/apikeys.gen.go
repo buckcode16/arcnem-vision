@@ -24,16 +24,16 @@ type Apikey struct {
 	RefillInterval      *int32     `gorm:"column:refill_interval;type:integer" json:"refill_interval"`
 	RefillAmount        *int32     `gorm:"column:refill_amount;type:integer" json:"refill_amount"`
 	LastRefillAt        *time.Time `gorm:"column:last_refill_at;type:timestamp without time zone" json:"last_refill_at"`
-	Enabled             *bool      `gorm:"column:enabled;type:boolean;default:true" json:"enabled"`
-	RateLimitEnabled    *bool      `gorm:"column:rate_limit_enabled;type:boolean;default:true" json:"rate_limit_enabled"`
-	RateLimitTimeWindow *int32     `gorm:"column:rate_limit_time_window;type:integer;default:86400000" json:"rate_limit_time_window"`
-	RateLimitMax        *int32     `gorm:"column:rate_limit_max;type:integer;default:10" json:"rate_limit_max"`
-	RequestCount        *int32     `gorm:"column:request_count;type:integer" json:"request_count"`
+	Enabled             bool       `gorm:"column:enabled;type:boolean;not null;default:true" json:"enabled"`
+	RateLimitEnabled    bool       `gorm:"column:rate_limit_enabled;type:boolean;not null;default:true" json:"rate_limit_enabled"`
+	RateLimitTimeWindow int32      `gorm:"column:rate_limit_time_window;type:integer;not null;default:86400000" json:"rate_limit_time_window"`
+	RateLimitMax        int32      `gorm:"column:rate_limit_max;type:integer;not null;default:10" json:"rate_limit_max"`
+	RequestCount        int32      `gorm:"column:request_count;type:integer;not null" json:"request_count"`
 	Remaining           *int32     `gorm:"column:remaining;type:integer" json:"remaining"`
 	LastRequest         *time.Time `gorm:"column:last_request;type:timestamp without time zone" json:"last_request"`
 	ExpiresAt           *time.Time `gorm:"column:expires_at;type:timestamp without time zone" json:"expires_at"`
-	CreatedAt           time.Time  `gorm:"column:created_at;type:timestamp without time zone;not null" json:"created_at"`
-	UpdatedAt           time.Time  `gorm:"column:updated_at;type:timestamp without time zone;not null" json:"updated_at"`
+	CreatedAt           time.Time  `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
+	UpdatedAt           time.Time  `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
 	Permissions         *string    `gorm:"column:permissions;type:text" json:"permissions"`
 	Metadata            *string    `gorm:"column:metadata;type:text" json:"metadata"`
 }

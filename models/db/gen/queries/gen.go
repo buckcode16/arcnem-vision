@@ -35,12 +35,14 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		DocumentDescription:          newDocumentDescription(db, opts...),
 		DocumentDescriptionEmbedding: newDocumentDescriptionEmbedding(db, opts...),
 		DocumentEmbedding:            newDocumentEmbedding(db, opts...),
+		DocumentSegmentation:         newDocumentSegmentation(db, opts...),
 		Invitation:                   newInvitation(db, opts...),
 		Member:                       newMember(db, opts...),
 		Model:                        newModel(db, opts...),
 		Organization:                 newOrganization(db, opts...),
 		PresignedUpload:              newPresignedUpload(db, opts...),
 		Project:                      newProject(db, opts...),
+		Session:                      newSession(db, opts...),
 		Tool:                         newTool(db, opts...),
 		User:                         newUser(db, opts...),
 		Verification:                 newVerification(db, opts...),
@@ -67,12 +69,14 @@ type Query struct {
 	DocumentDescription          documentDescription
 	DocumentDescriptionEmbedding documentDescriptionEmbedding
 	DocumentEmbedding            documentEmbedding
+	DocumentSegmentation         documentSegmentation
 	Invitation                   invitation
 	Member                       member
 	Model                        model
 	Organization                 organization
 	PresignedUpload              presignedUpload
 	Project                      project
+	Session                      session
 	Tool                         tool
 	User                         user
 	Verification                 verification
@@ -100,12 +104,14 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		DocumentDescription:          q.DocumentDescription.clone(db),
 		DocumentDescriptionEmbedding: q.DocumentDescriptionEmbedding.clone(db),
 		DocumentEmbedding:            q.DocumentEmbedding.clone(db),
+		DocumentSegmentation:         q.DocumentSegmentation.clone(db),
 		Invitation:                   q.Invitation.clone(db),
 		Member:                       q.Member.clone(db),
 		Model:                        q.Model.clone(db),
 		Organization:                 q.Organization.clone(db),
 		PresignedUpload:              q.PresignedUpload.clone(db),
 		Project:                      q.Project.clone(db),
+		Session:                      q.Session.clone(db),
 		Tool:                         q.Tool.clone(db),
 		User:                         q.User.clone(db),
 		Verification:                 q.Verification.clone(db),
@@ -140,12 +146,14 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		DocumentDescription:          q.DocumentDescription.replaceDB(db),
 		DocumentDescriptionEmbedding: q.DocumentDescriptionEmbedding.replaceDB(db),
 		DocumentEmbedding:            q.DocumentEmbedding.replaceDB(db),
+		DocumentSegmentation:         q.DocumentSegmentation.replaceDB(db),
 		Invitation:                   q.Invitation.replaceDB(db),
 		Member:                       q.Member.replaceDB(db),
 		Model:                        q.Model.replaceDB(db),
 		Organization:                 q.Organization.replaceDB(db),
 		PresignedUpload:              q.PresignedUpload.replaceDB(db),
 		Project:                      q.Project.replaceDB(db),
+		Session:                      q.Session.replaceDB(db),
 		Tool:                         q.Tool.replaceDB(db),
 		User:                         q.User.replaceDB(db),
 		Verification:                 q.Verification.replaceDB(db),
@@ -170,12 +178,14 @@ type queryCtx struct {
 	DocumentDescription          *documentDescriptionDo
 	DocumentDescriptionEmbedding *documentDescriptionEmbeddingDo
 	DocumentEmbedding            *documentEmbeddingDo
+	DocumentSegmentation         *documentSegmentationDo
 	Invitation                   *invitationDo
 	Member                       *memberDo
 	Model                        *modelDo
 	Organization                 *organizationDo
 	PresignedUpload              *presignedUploadDo
 	Project                      *projectDo
+	Session                      *sessionDo
 	Tool                         *toolDo
 	User                         *userDo
 	Verification                 *verificationDo
@@ -200,12 +210,14 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		DocumentDescription:          q.DocumentDescription.WithContext(ctx),
 		DocumentDescriptionEmbedding: q.DocumentDescriptionEmbedding.WithContext(ctx),
 		DocumentEmbedding:            q.DocumentEmbedding.WithContext(ctx),
+		DocumentSegmentation:         q.DocumentSegmentation.WithContext(ctx),
 		Invitation:                   q.Invitation.WithContext(ctx),
 		Member:                       q.Member.WithContext(ctx),
 		Model:                        q.Model.WithContext(ctx),
 		Organization:                 q.Organization.WithContext(ctx),
 		PresignedUpload:              q.PresignedUpload.WithContext(ctx),
 		Project:                      q.Project.WithContext(ctx),
+		Session:                      q.Session.WithContext(ctx),
 		Tool:                         q.Tool.WithContext(ctx),
 		User:                         q.User.WithContext(ctx),
 		Verification:                 q.Verification.WithContext(ctx),

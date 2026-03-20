@@ -33,10 +33,10 @@ func newAgentGraphTemplate(db *gorm.DB, opts ...gen.DOOption) agentGraphTemplate
 	_agentGraphTemplate.Version = field.NewInt32(tableName, "version")
 	_agentGraphTemplate.Visibility = field.NewString(tableName, "visibility")
 	_agentGraphTemplate.EntryNode = field.NewString(tableName, "entry_node")
+	_agentGraphTemplate.StateSchema = field.NewString(tableName, "state_schema")
 	_agentGraphTemplate.OrganizationID = field.NewString(tableName, "organization_id")
 	_agentGraphTemplate.CreatedAt = field.NewTime(tableName, "created_at")
 	_agentGraphTemplate.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_agentGraphTemplate.StateSchema = field.NewString(tableName, "state_schema")
 
 	_agentGraphTemplate.fillFieldMap()
 
@@ -53,10 +53,10 @@ type agentGraphTemplate struct {
 	Version        field.Int32
 	Visibility     field.String
 	EntryNode      field.String
+	StateSchema    field.String
 	OrganizationID field.String
 	CreatedAt      field.Time
 	UpdatedAt      field.Time
-	StateSchema    field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -79,10 +79,10 @@ func (a *agentGraphTemplate) updateTableName(table string) *agentGraphTemplate {
 	a.Version = field.NewInt32(table, "version")
 	a.Visibility = field.NewString(table, "visibility")
 	a.EntryNode = field.NewString(table, "entry_node")
+	a.StateSchema = field.NewString(table, "state_schema")
 	a.OrganizationID = field.NewString(table, "organization_id")
 	a.CreatedAt = field.NewTime(table, "created_at")
 	a.UpdatedAt = field.NewTime(table, "updated_at")
-	a.StateSchema = field.NewString(table, "state_schema")
 
 	a.fillFieldMap()
 
@@ -118,10 +118,10 @@ func (a *agentGraphTemplate) fillFieldMap() {
 	a.fieldMap["version"] = a.Version
 	a.fieldMap["visibility"] = a.Visibility
 	a.fieldMap["entry_node"] = a.EntryNode
+	a.fieldMap["state_schema"] = a.StateSchema
 	a.fieldMap["organization_id"] = a.OrganizationID
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
-	a.fieldMap["state_schema"] = a.StateSchema
 }
 
 func (a agentGraphTemplate) clone(db *gorm.DB) agentGraphTemplate {

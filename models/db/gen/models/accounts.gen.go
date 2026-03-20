@@ -24,7 +24,7 @@ type Account struct {
 	Scope                 *string    `gorm:"column:scope;type:text" json:"scope"`
 	Password              *string    `gorm:"column:password;type:text" json:"password"`
 	CreatedAt             time.Time  `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
-	UpdatedAt             time.Time  `gorm:"column:updated_at;type:timestamp without time zone;not null" json:"updated_at"`
+	UpdatedAt             time.Time  `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
 }
 
 // TableName Account's table name

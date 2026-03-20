@@ -18,10 +18,10 @@ type AgentGraphTemplate struct {
 	Version        int32     `gorm:"column:version;type:integer;not null;default:1" json:"version"`
 	Visibility     string    `gorm:"column:visibility;type:text;not null" json:"visibility"`
 	EntryNode      string    `gorm:"column:entry_node;type:text;not null" json:"entry_node"`
+	StateSchema    *string   `gorm:"column:state_schema;type:jsonb" json:"state_schema"`
 	OrganizationID *string   `gorm:"column:organization_id;type:uuid" json:"organization_id"`
 	CreatedAt      time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
-	StateSchema    *string   `gorm:"column:state_schema;type:jsonb" json:"state_schema"`
 }
 
 // TableName AgentGraphTemplate's table name

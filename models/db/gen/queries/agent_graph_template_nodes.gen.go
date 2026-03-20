@@ -30,13 +30,13 @@ func newAgentGraphTemplateNode(db *gorm.DB, opts ...gen.DOOption) agentGraphTemp
 	_agentGraphTemplateNode.ID = field.NewString(tableName, "id")
 	_agentGraphTemplateNode.NodeKey = field.NewString(tableName, "node_key")
 	_agentGraphTemplateNode.NodeType = field.NewString(tableName, "node_type")
+	_agentGraphTemplateNode.InputKey = field.NewString(tableName, "input_key")
+	_agentGraphTemplateNode.OutputKey = field.NewString(tableName, "output_key")
 	_agentGraphTemplateNode.Config = field.NewString(tableName, "config")
 	_agentGraphTemplateNode.AgentGraphTemplateID = field.NewString(tableName, "agent_graph_template_id")
 	_agentGraphTemplateNode.ModelID = field.NewString(tableName, "model_id")
 	_agentGraphTemplateNode.CreatedAt = field.NewTime(tableName, "created_at")
 	_agentGraphTemplateNode.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_agentGraphTemplateNode.InputKey = field.NewString(tableName, "input_key")
-	_agentGraphTemplateNode.OutputKey = field.NewString(tableName, "output_key")
 
 	_agentGraphTemplateNode.fillFieldMap()
 
@@ -50,13 +50,13 @@ type agentGraphTemplateNode struct {
 	ID                   field.String
 	NodeKey              field.String
 	NodeType             field.String
+	InputKey             field.String
+	OutputKey            field.String
 	Config               field.String
 	AgentGraphTemplateID field.String
 	ModelID              field.String
 	CreatedAt            field.Time
 	UpdatedAt            field.Time
-	InputKey             field.String
-	OutputKey            field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -76,13 +76,13 @@ func (a *agentGraphTemplateNode) updateTableName(table string) *agentGraphTempla
 	a.ID = field.NewString(table, "id")
 	a.NodeKey = field.NewString(table, "node_key")
 	a.NodeType = field.NewString(table, "node_type")
+	a.InputKey = field.NewString(table, "input_key")
+	a.OutputKey = field.NewString(table, "output_key")
 	a.Config = field.NewString(table, "config")
 	a.AgentGraphTemplateID = field.NewString(table, "agent_graph_template_id")
 	a.ModelID = field.NewString(table, "model_id")
 	a.CreatedAt = field.NewTime(table, "created_at")
 	a.UpdatedAt = field.NewTime(table, "updated_at")
-	a.InputKey = field.NewString(table, "input_key")
-	a.OutputKey = field.NewString(table, "output_key")
 
 	a.fillFieldMap()
 
@@ -115,13 +115,13 @@ func (a *agentGraphTemplateNode) fillFieldMap() {
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["node_key"] = a.NodeKey
 	a.fieldMap["node_type"] = a.NodeType
+	a.fieldMap["input_key"] = a.InputKey
+	a.fieldMap["output_key"] = a.OutputKey
 	a.fieldMap["config"] = a.Config
 	a.fieldMap["agent_graph_template_id"] = a.AgentGraphTemplateID
 	a.fieldMap["model_id"] = a.ModelID
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
-	a.fieldMap["input_key"] = a.InputKey
-	a.fieldMap["output_key"] = a.OutputKey
 }
 
 func (a agentGraphTemplateNode) clone(db *gorm.DB) agentGraphTemplateNode {

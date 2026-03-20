@@ -8,6 +8,13 @@
       "when": 1771431000310,
       "tag": "0000_clammy_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773973012224,
+      "tag": "0001_lovely_skaar",
+      "breakpoints": true
     }
   ]
 }

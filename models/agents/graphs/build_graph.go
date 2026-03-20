@@ -206,13 +206,13 @@ func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*gr
 	}
 	g.SetSchema(schema)
 
-	// Deduplicate model clients by provider:model.
+	// Deduplicate model clients by provider:model:version.
 	modelClients := make(map[string]any)
 	for _, node := range agentGraphSnapshot.Nodes {
 		if node.Model == nil {
 			continue
 		}
-		key := fmt.Sprintf("%s:%s", node.Model.Provider, node.Model.Name)
+		key := fmt.Sprintf("%s:%s:%s", node.Model.Provider, node.Model.Name, node.Model.Version)
 		if _, ok := modelClients[key]; ok {
 			continue
 		}
@@ -235,7 +235,7 @@ func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*gr
 
 		var modelClient any
 		if node.Model != nil {
-			key := fmt.Sprintf("%s:%s", node.Model.Provider, node.Model.Name)
+			key := fmt.Sprintf("%s:%s:%s", node.Model.Provider, node.Model.Name, node.Model.Version)
 			modelClient = modelClients[key]
 		}
 
@@ -264,7 +264,7 @@ func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*gr
 
 		var modelClient any
 		if node.Model != nil {
-			key := fmt.Sprintf("%s:%s", node.Model.Provider, node.Model.Name)
+			key := fmt.Sprintf("%s:%s:%s", node.Model.Provider, node.Model.Name, node.Model.Version)
 			modelClient = modelClients[key]
 		}
 

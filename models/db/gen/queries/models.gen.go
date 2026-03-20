@@ -34,6 +34,10 @@ func newModel(db *gorm.DB, opts ...gen.DOOption) model {
 	_model.EmbeddingDim = field.NewInt32(tableName, "embedding_dim")
 	_model.CreatedAt = field.NewTime(tableName, "created_at")
 	_model.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_model.Version = field.NewString(tableName, "version")
+	_model.InputSchema = field.NewString(tableName, "input_schema")
+	_model.OutputSchema = field.NewString(tableName, "output_schema")
+	_model.Config = field.NewString(tableName, "config")
 
 	_model.fillFieldMap()
 
@@ -51,6 +55,10 @@ type model struct {
 	EmbeddingDim field.Int32
 	CreatedAt    field.Time
 	UpdatedAt    field.Time
+	Version      field.String
+	InputSchema  field.String
+	OutputSchema field.String
+	Config       field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -74,6 +82,10 @@ func (m *model) updateTableName(table string) *model {
 	m.EmbeddingDim = field.NewInt32(table, "embedding_dim")
 	m.CreatedAt = field.NewTime(table, "created_at")
 	m.UpdatedAt = field.NewTime(table, "updated_at")
+	m.Version = field.NewString(table, "version")
+	m.InputSchema = field.NewString(table, "input_schema")
+	m.OutputSchema = field.NewString(table, "output_schema")
+	m.Config = field.NewString(table, "config")
 
 	m.fillFieldMap()
 
@@ -98,7 +110,7 @@ func (m *model) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (m *model) fillFieldMap() {
-	m.fieldMap = make(map[string]field.Expr, 7)
+	m.fieldMap = make(map[string]field.Expr, 11)
 	m.fieldMap["id"] = m.ID
 	m.fieldMap["provider"] = m.Provider
 	m.fieldMap["name"] = m.Name
@@ -106,6 +118,10 @@ func (m *model) fillFieldMap() {
 	m.fieldMap["embedding_dim"] = m.EmbeddingDim
 	m.fieldMap["created_at"] = m.CreatedAt
 	m.fieldMap["updated_at"] = m.UpdatedAt
+	m.fieldMap["version"] = m.Version
+	m.fieldMap["input_schema"] = m.InputSchema
+	m.fieldMap["output_schema"] = m.OutputSchema
+	m.fieldMap["config"] = m.Config
 }
 
 func (m model) clone(db *gorm.DB) model {

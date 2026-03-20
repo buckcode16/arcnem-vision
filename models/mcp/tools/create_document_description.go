@@ -18,9 +18,9 @@ func RegisterCreateDocumentDescription(server *mcp.Server) {
 		Name:        "create_document_description",
 		Description: "Save an LLM-generated text description for a document.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input CreateDocumentDescriptionInput) (*mcp.CallToolResult, CreateDocumentDescriptionOutput, error) {
-		var model dbmodels.Model
-		if err := db.Where("provider = ? AND name = ?", input.ModelProvider, input.ModelName).First(&model).Error; err != nil {
-			return nil, CreateDocumentDescriptionOutput{}, fmt.Errorf("failed to find model %s/%s in db: %w", input.ModelProvider, input.ModelName, err)
+		model, err := findModelByIdentity(db, input.ModelProvider, input.ModelName, input.ModelVersion)
+		if err != nil {
+			return nil, CreateDocumentDescriptionOutput{}, err
 		}
 
 		record := dbmodels.DocumentDescription{

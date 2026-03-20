@@ -22,8 +22,8 @@ func RegisterCreateDescriptionEmbedding(server *mcp.Server) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input CreateDescriptionEmbeddingInput) (*mcp.CallToolResult, CreateDescriptionEmbeddingOutput, error) {
 		startedAt := time.Now()
 
-		var model dbmodels.Model
-		if err := db.Where("provider = ? AND name = ?", "REPLICATE", "openai/clip").First(&model).Error; err != nil {
+		model, err := findModelByIdentity(db, "REPLICATE", "openai/clip", "")
+		if err != nil {
 			return nil, CreateDescriptionEmbeddingOutput{}, fmt.Errorf("failed to find CLIP model in db: %w", err)
 		}
 

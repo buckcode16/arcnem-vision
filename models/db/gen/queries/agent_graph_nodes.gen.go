@@ -30,13 +30,13 @@ func newAgentGraphNode(db *gorm.DB, opts ...gen.DOOption) agentGraphNode {
 	_agentGraphNode.ID = field.NewString(tableName, "id")
 	_agentGraphNode.NodeKey = field.NewString(tableName, "node_key")
 	_agentGraphNode.NodeType = field.NewString(tableName, "node_type")
+	_agentGraphNode.InputKey = field.NewString(tableName, "input_key")
+	_agentGraphNode.OutputKey = field.NewString(tableName, "output_key")
 	_agentGraphNode.Config = field.NewString(tableName, "config")
 	_agentGraphNode.AgentGraphID = field.NewString(tableName, "agent_graph_id")
 	_agentGraphNode.ModelID = field.NewString(tableName, "model_id")
 	_agentGraphNode.CreatedAt = field.NewTime(tableName, "created_at")
 	_agentGraphNode.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_agentGraphNode.InputKey = field.NewString(tableName, "input_key")
-	_agentGraphNode.OutputKey = field.NewString(tableName, "output_key")
 
 	_agentGraphNode.fillFieldMap()
 
@@ -50,13 +50,13 @@ type agentGraphNode struct {
 	ID           field.String
 	NodeKey      field.String
 	NodeType     field.String
+	InputKey     field.String
+	OutputKey    field.String
 	Config       field.String
 	AgentGraphID field.String
 	ModelID      field.String
 	CreatedAt    field.Time
 	UpdatedAt    field.Time
-	InputKey     field.String
-	OutputKey    field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -76,13 +76,13 @@ func (a *agentGraphNode) updateTableName(table string) *agentGraphNode {
 	a.ID = field.NewString(table, "id")
 	a.NodeKey = field.NewString(table, "node_key")
 	a.NodeType = field.NewString(table, "node_type")
+	a.InputKey = field.NewString(table, "input_key")
+	a.OutputKey = field.NewString(table, "output_key")
 	a.Config = field.NewString(table, "config")
 	a.AgentGraphID = field.NewString(table, "agent_graph_id")
 	a.ModelID = field.NewString(table, "model_id")
 	a.CreatedAt = field.NewTime(table, "created_at")
 	a.UpdatedAt = field.NewTime(table, "updated_at")
-	a.InputKey = field.NewString(table, "input_key")
-	a.OutputKey = field.NewString(table, "output_key")
 
 	a.fillFieldMap()
 
@@ -115,13 +115,13 @@ func (a *agentGraphNode) fillFieldMap() {
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["node_key"] = a.NodeKey
 	a.fieldMap["node_type"] = a.NodeType
+	a.fieldMap["input_key"] = a.InputKey
+	a.fieldMap["output_key"] = a.OutputKey
 	a.fieldMap["config"] = a.Config
 	a.fieldMap["agent_graph_id"] = a.AgentGraphID
 	a.fieldMap["model_id"] = a.ModelID
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
-	a.fieldMap["input_key"] = a.InputKey
-	a.fieldMap["output_key"] = a.OutputKey
 }
 
 func (a agentGraphNode) clone(db *gorm.DB) agentGraphNode {

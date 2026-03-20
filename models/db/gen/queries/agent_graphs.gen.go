@@ -31,12 +31,12 @@ func newAgentGraph(db *gorm.DB, opts ...gen.DOOption) agentGraph {
 	_agentGraph.Name = field.NewString(tableName, "name")
 	_agentGraph.Description = field.NewString(tableName, "description")
 	_agentGraph.EntryNode = field.NewString(tableName, "entry_node")
+	_agentGraph.StateSchema = field.NewString(tableName, "state_schema")
 	_agentGraph.AgentGraphTemplateID = field.NewString(tableName, "agent_graph_template_id")
 	_agentGraph.AgentGraphTemplateVersion = field.NewInt32(tableName, "agent_graph_template_version")
 	_agentGraph.OrganizationID = field.NewString(tableName, "organization_id")
 	_agentGraph.CreatedAt = field.NewTime(tableName, "created_at")
 	_agentGraph.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_agentGraph.StateSchema = field.NewString(tableName, "state_schema")
 
 	_agentGraph.fillFieldMap()
 
@@ -51,12 +51,12 @@ type agentGraph struct {
 	Name                      field.String
 	Description               field.String
 	EntryNode                 field.String
+	StateSchema               field.String
 	AgentGraphTemplateID      field.String
 	AgentGraphTemplateVersion field.Int32
 	OrganizationID            field.String
 	CreatedAt                 field.Time
 	UpdatedAt                 field.Time
-	StateSchema               field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -77,12 +77,12 @@ func (a *agentGraph) updateTableName(table string) *agentGraph {
 	a.Name = field.NewString(table, "name")
 	a.Description = field.NewString(table, "description")
 	a.EntryNode = field.NewString(table, "entry_node")
+	a.StateSchema = field.NewString(table, "state_schema")
 	a.AgentGraphTemplateID = field.NewString(table, "agent_graph_template_id")
 	a.AgentGraphTemplateVersion = field.NewInt32(table, "agent_graph_template_version")
 	a.OrganizationID = field.NewString(table, "organization_id")
 	a.CreatedAt = field.NewTime(table, "created_at")
 	a.UpdatedAt = field.NewTime(table, "updated_at")
-	a.StateSchema = field.NewString(table, "state_schema")
 
 	a.fillFieldMap()
 
@@ -114,12 +114,12 @@ func (a *agentGraph) fillFieldMap() {
 	a.fieldMap["name"] = a.Name
 	a.fieldMap["description"] = a.Description
 	a.fieldMap["entry_node"] = a.EntryNode
+	a.fieldMap["state_schema"] = a.StateSchema
 	a.fieldMap["agent_graph_template_id"] = a.AgentGraphTemplateID
 	a.fieldMap["agent_graph_template_version"] = a.AgentGraphTemplateVersion
 	a.fieldMap["organization_id"] = a.OrganizationID
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
-	a.fieldMap["state_schema"] = a.StateSchema
 }
 
 func (a agentGraph) clone(db *gorm.DB) agentGraph {

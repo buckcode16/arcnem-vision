@@ -31,9 +31,15 @@ const plainPipelineApiKey =
 	"seed_X9x8U7v6W5u4T3s2R1q0P9o8N7m6L5k4J3i2H1g0F9e8D7c6B5a4Z3y2X1w0";
 const plainQualityReviewApiKey =
 	"seed_Q7p6N5m4L3k2J1h0G9f8D7s6A5z4X3c2V1b0N9m8K7j6H5g4F3d2S1a0P9o8";
+const plainSegmentationApiKey =
+	"seed_seg_G4m2L8p1Q7r9S3t5U6v0W2x4Y8z1A3b5C7d9E0f2H4j6K8m0N2p4";
 const seedDashboardSessionToken =
 	"seed_dashboard_session_s4M8xR2vJ7nK1qP5wL9cD3fH6tY0uB4";
 const seedDocumentEmbeddingDim = 768;
+const semanticSegmentAnythingVersion =
+	"b2691db53f2d96add0051a4a98e7a3861bd21bf5972031119d344d956d2f8256";
+const langSegmentAnythingVersion =
+	"891411c38a6ed2d44c004b7b9e44217df7a5b07848f29ddefd2e28bc7cbf93bc";
 
 const S3_ENV_VAR = {
 	S3_ACCESS_KEY_ID: "S3_ACCESS_KEY_ID",
@@ -92,6 +98,70 @@ const seedQualityReviewDocumentInputs = [
 			"Hazy shoreline scene with rocks in the foreground, pale sky, and muted contrast across the water.",
 	},
 ] as const satisfies ReadonlyArray<SeedDocumentInput>;
+
+const seedSegmentationDocumentInputs = [
+	{
+		slug: "vintage-car-segmentation",
+		fileName: "vintage-car.jpg",
+		description:
+			"Vintage black car on a city street used for seeded semantic and language-prompted segmentation demos.",
+	},
+] as const satisfies ReadonlyArray<SeedDocumentInput>;
+
+const semanticSegmentationInputSchema = {
+	type: "object",
+	properties: {
+		image: { type: "string", description: "Input image" },
+		output_json: { type: "boolean", default: true },
+	},
+	required: ["image"],
+} as const;
+
+const semanticSegmentationOutputSchema = {
+	type: "object",
+	title: "ModelOutput",
+	properties: {
+		img_out: { type: "string", format: "uri", title: "Img Out" },
+		json_out: { type: "string", format: "uri", title: "Json Out" },
+	},
+	required: ["img_out"],
+} as const;
+
+const semanticSegmentationModelConfig = {
+	input_image_field: "image",
+	input_defaults: {
+		output_json: true,
+	},
+	result_path: "json_out",
+	result_source: "url_json",
+	output_image_path: "img_out",
+} as const;
+
+const langSegmentationInputSchema = {
+	type: "object",
+	properties: {
+		image: { type: "string", description: "Path to the input image" },
+		text_prompt: {
+			type: "string",
+			description: "Text prompt for segmentation",
+		},
+	},
+	required: ["image", "text_prompt"],
+} as const;
+
+const langSegmentationOutputSchema = {
+	type: "string",
+	format: "uri",
+	title: "Output",
+} as const;
+
+const langSegmentationModelConfig = {
+	input_image_field: "image",
+	input_defaults: {},
+	result_path: "$",
+	result_source: "raw",
+	output_image_path: "$",
+} as const;
 
 type UploadedSeedDocument = {
 	slug: string;
@@ -227,6 +297,7 @@ const uploadSeedDocumentsToS3 = async (
 const seed = async () => {
 	const hashedPipelineApiKey = await hashApiKey(plainPipelineApiKey);
 	const hashedQualityReviewApiKey = await hashApiKey(plainQualityReviewApiKey);
+	const hashedSegmentationApiKey = await hashApiKey(plainSegmentationApiKey);
 	const { bucket, client: s3Client } = getSeedS3Client();
 	const uploadedSeedDocuments = await uploadSeedDocumentsToS3(
 		s3Client,
@@ -237,6 +308,11 @@ const seed = async () => {
 		s3Client,
 		seedQualityReviewDocumentInputs,
 		"seed/quality-review",
+	);
+	const uploadedSegmentationDocuments = await uploadSeedDocumentsToS3(
+		s3Client,
+		seedSegmentationDocumentInputs,
+		"seed/segmentations",
 	);
 
 	const result = await db.transaction(async (tx) => {
@@ -249,6 +325,7 @@ const seed = async () => {
 				"agent_graph_nodes",
 				"agent_graphs",
 				"tools",
+				"document_segmentations",
 				"document_description_embeddings",
 				"document_descriptions",
 				"document_embeddings",
@@ -346,8 +423,10 @@ const seed = async () => {
 			.values({
 				provider: "REPLICATE",
 				name: "openai/clip",
+				version: "",
 				type: "embedding",
 				embeddingDim: 768,
+				config: {},
 			})
 			.returning({ id: models.id });
 		if (!clipModel) throw new Error("Failed to create CLIP model");
@@ -357,10 +436,44 @@ const seed = async () => {
 			.values({
 				provider: "OPENAI",
 				name: "gpt-4.1-mini",
+				version: "",
 				type: "chat",
+				config: {},
 			})
 			.returning({ id: models.id });
 		if (!gpt41MiniModel) throw new Error("Failed to create GPT-4.1-mini model");
+
+		const [semanticSegmentationModel] = await tx
+			.insert(models)
+			.values({
+				provider: "REPLICATE",
+				name: "cjwbw/semantic-segment-anything",
+				version: semanticSegmentAnythingVersion,
+				type: "segmentation",
+				inputSchema: semanticSegmentationInputSchema,
+				outputSchema: semanticSegmentationOutputSchema,
+				config: semanticSegmentationModelConfig,
+			})
+			.returning({ id: models.id });
+		if (!semanticSegmentationModel) {
+			throw new Error("Failed to create semantic segmentation model");
+		}
+
+		const [langSegmentationModel] = await tx
+			.insert(models)
+			.values({
+				provider: "REPLICATE",
+				name: "tmappdev/lang-segment-anything",
+				version: langSegmentAnythingVersion,
+				type: "segmentation",
+				inputSchema: langSegmentationInputSchema,
+				outputSchema: langSegmentationOutputSchema,
+				config: langSegmentationModelConfig,
+			})
+			.returning({ id: models.id });
+		if (!langSegmentationModel) {
+			throw new Error("Failed to create language segmentation model");
+		}
 
 		// ── Tools ──
 
@@ -376,8 +489,15 @@ const seed = async () => {
 						text: { type: "string" },
 						model_provider: { type: "string" },
 						model_name: { type: "string" },
+						model_version: { type: "string" },
 					},
-					required: ["document_id", "text", "model_provider", "model_name"],
+					required: [
+						"document_id",
+						"text",
+						"model_provider",
+						"model_name",
+						"model_version",
+					],
 				}),
 				outputSchema: JSON.stringify({
 					type: "object",
@@ -415,6 +535,48 @@ const seed = async () => {
 			.returning({ id: tools.id });
 		if (!createDocEmbTool)
 			throw new Error("Failed to create create_document_embedding tool");
+
+		const [createDocSegTool] = await tx
+			.insert(tools)
+			.values({
+				name: "create_document_segmentation",
+				description:
+					"Generate a document segmentation, persist the result payload, and store any derived segmented image as a document.",
+				inputSchema: JSON.stringify({
+					type: "object",
+					properties: {
+						document_id: { type: "string" },
+						temp_url: { type: "string" },
+						model_provider: { type: "string" },
+						model_name: { type: "string" },
+						model_version: { type: "string" },
+						input_params: { type: "object" },
+					},
+					required: [
+						"document_id",
+						"temp_url",
+						"model_provider",
+						"model_name",
+						"model_version",
+					],
+				}),
+				outputSchema: JSON.stringify({
+					type: "object",
+					properties: {
+						segmentation_id: { type: "string" },
+						segmented_document_id: {
+							type: ["string", "null"],
+						},
+						segmented_temp_url: {
+							type: ["string", "null"],
+						},
+						result: {},
+					},
+				}),
+			})
+			.returning({ id: tools.id });
+		if (!createDocSegTool)
+			throw new Error("Failed to create create_document_segmentation tool");
 
 		const [createDescEmbTool] = await tx
 			.insert(tools)
@@ -555,6 +717,7 @@ const seed = async () => {
 						text: "description",
 						model_provider: "_const:OPENAI",
 						model_name: "_const:gpt-4.1-mini",
+						model_version: "_const:",
 					},
 					output_mapping: {
 						description_id: "document_description_id",
@@ -1242,6 +1405,255 @@ const seed = async () => {
 			},
 		]);
 
+		// ── Agent Graph (workflow 3: semantic segmentation + language-prompted segmentation) ──
+
+		const [segmentationGraph] = await tx
+			.insert(agentGraphs)
+			.values({
+				name: "Document Segmentation Showcase",
+				description:
+					"Runs both semantic and language-prompted segmentation models and summarizes their derived outputs.",
+				entryNode: "semantic_segment",
+				organizationId: organization.id,
+			})
+			.returning({ id: agentGraphs.id });
+		if (!segmentationGraph) {
+			throw new Error("Failed to create segmentation agent graph");
+		}
+
+		const [semanticSegmentNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "semantic_segment",
+				nodeType: "tool",
+				config: JSON.stringify({
+					input_mapping: {
+						model_provider: "_const:REPLICATE",
+						model_name: "_const:cjwbw/semantic-segment-anything",
+						model_version: `_const:${semanticSegmentAnythingVersion}`,
+					},
+					output_mapping: {
+						segmentation_id: "semantic_segmentation_id",
+						segmented_document_id: "semantic_segmented_document_id",
+						segmented_temp_url: "semantic_segmented_temp_url",
+						result: "semantic_segmentation_result",
+					},
+				}),
+				agentGraphId: segmentationGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!semanticSegmentNode) {
+			throw new Error("Failed to create semantic_segment node");
+		}
+
+		const [describeSemanticNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "describe_semantic_segment",
+				nodeType: "worker",
+				inputKey: "semantic_segmented_temp_url",
+				outputKey: "semantic_segment_summary",
+				config: JSON.stringify({
+					system_message:
+						"You are a segmentation analyst. Given a segmented image, describe the highlighted regions and what scene structure the mask appears to isolate. Keep the response to one concise paragraph.",
+					max_iterations: 3,
+					input_mode: "image_url",
+					input_prompt:
+						"Describe the semantic segmentation image and the main regions it separates.",
+				}),
+				agentGraphId: segmentationGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!describeSemanticNode) {
+			throw new Error("Failed to create describe_semantic_segment node");
+		}
+
+		const [langSegmentNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "lang_segment",
+				nodeType: "tool",
+				config: JSON.stringify({
+					input_mapping: {
+						model_provider: "_const:REPLICATE",
+						model_name: "_const:tmappdev/lang-segment-anything",
+						model_version: `_const:${langSegmentAnythingVersion}`,
+						input_params: {
+							text_prompt: "car",
+						},
+					},
+					output_mapping: {
+						segmentation_id: "lang_segmentation_id",
+						segmented_document_id: "lang_segmented_document_id",
+						segmented_temp_url: "lang_segmented_temp_url",
+						result: "lang_segmentation_result",
+					},
+				}),
+				agentGraphId: segmentationGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!langSegmentNode) {
+			throw new Error("Failed to create lang_segment node");
+		}
+
+		const [describeLangNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "describe_lang_segment",
+				nodeType: "worker",
+				inputKey: "lang_segmented_temp_url",
+				outputKey: "lang_segment_summary",
+				config: JSON.stringify({
+					system_message:
+						"You are a segmentation analyst. Given a prompt-driven segmented image, explain what object the mask appears to isolate and whether the result is plausible. Keep the response to one concise paragraph.",
+					max_iterations: 3,
+					input_mode: "image_url",
+					input_prompt:
+						"Describe the prompt-driven segmentation result and the object it isolates.",
+				}),
+				agentGraphId: segmentationGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!describeLangNode) {
+			throw new Error("Failed to create describe_lang_segment node");
+		}
+
+		await tx.insert(agentGraphNodeTools).values([
+			{
+				agentGraphNodeId: semanticSegmentNode.id,
+				toolId: createDocSegTool.id,
+			},
+			{
+				agentGraphNodeId: langSegmentNode.id,
+				toolId: createDocSegTool.id,
+			},
+		]);
+
+		await tx.insert(agentGraphEdges).values([
+			{
+				fromNode: "semantic_segment",
+				toNode: "describe_semantic_segment",
+				agentGraphId: segmentationGraph.id,
+			},
+			{
+				fromNode: "describe_semantic_segment",
+				toNode: "lang_segment",
+				agentGraphId: segmentationGraph.id,
+			},
+			{
+				fromNode: "lang_segment",
+				toNode: "describe_lang_segment",
+				agentGraphId: segmentationGraph.id,
+			},
+			{
+				fromNode: "describe_lang_segment",
+				toNode: "END",
+				agentGraphId: segmentationGraph.id,
+			},
+		]);
+
+		const [segmentationDevice] = await tx
+			.insert(devices)
+			.values({
+				name: "Seed Segmentation Device",
+				slug: "seed-segmentation-device",
+				organizationId: organization.id,
+				projectId: project.id,
+				agentGraphId: segmentationGraph.id,
+			})
+			.returning({
+				id: devices.id,
+				slug: devices.slug,
+			});
+		if (!segmentationDevice) {
+			throw new Error("Failed to create segmentation device");
+		}
+
+		const [segmentationApiKey] = await tx
+			.insert(apikeys)
+			.values({
+				name: "Seed Segmentation Device API Key",
+				start: plainSegmentationApiKey.slice(0, 6),
+				prefix: "seed",
+				key: hashedSegmentationApiKey,
+				userId: user.id,
+				organizationId: organization.id,
+				projectId: project.id,
+				deviceId: segmentationDevice.id,
+				enabled: true,
+				rateLimitEnabled: true,
+				rateLimitTimeWindow: 86_400_000,
+				rateLimitMax: 10,
+				requestCount: 0,
+				createdAt: now,
+				updatedAt: now,
+				permissions: JSON.stringify({ uploads: ["presign", "ack"] }),
+				metadata: JSON.stringify({
+					source: "seed.ts",
+					workflow: "segmentation-showcase",
+				}),
+			})
+			.returning({
+				id: apikeys.id,
+			});
+		if (!segmentationApiKey) {
+			throw new Error("Failed to create segmentation API key");
+		}
+
+		const insertedSegmentationDocuments = await tx
+			.insert(documents)
+			.values(
+				uploadedSegmentationDocuments.map((seedDocument) => ({
+					bucket,
+					objectKey: seedDocument.objectKey,
+					contentType: seedDocument.contentType,
+					eTag: seedDocument.eTag,
+					sizeBytes: seedDocument.sizeBytes,
+					lastModifiedAt: seedDocument.lastModifiedAt,
+					visibility: "org",
+					organizationId: organization.id,
+					projectId: project.id,
+					deviceId: segmentationDevice.id,
+				})),
+			)
+			.returning({
+				id: documents.id,
+				objectKey: documents.objectKey,
+			});
+		if (
+			insertedSegmentationDocuments.length !==
+			uploadedSegmentationDocuments.length
+		) {
+			throw new Error("Failed to insert segmentation seed documents");
+		}
+
+		const segmentationDocumentIdByObjectKey = new Map(
+			insertedSegmentationDocuments.map((document) => [
+				document.objectKey,
+				document.id,
+			]),
+		);
+
+		const segmentationSeedDocumentsWithIds = uploadedSegmentationDocuments.map(
+			(seedDocument) => {
+				const documentId = segmentationDocumentIdByObjectKey.get(
+					seedDocument.objectKey,
+				);
+				if (!documentId) {
+					throw new Error(
+						`Failed to resolve segmentation document id for ${seedDocument.objectKey}`,
+					);
+				}
+
+				return {
+					...seedDocument,
+					documentId,
+				};
+			},
+		);
+
 		return {
 			user,
 			dashboardSession,
@@ -1253,12 +1665,18 @@ const seed = async () => {
 			qualityReviewDevice,
 			qualityReviewApiKey,
 			qualityReviewGraph,
+			segmentationDevice,
+			segmentationApiKey,
+			segmentationGraph,
 			clipModel,
 			gpt41MiniModel,
+			semanticSegmentationModel,
+			langSegmentationModel,
 			seededDocuments: seedDocumentsWithIds,
 			seededDescriptionCount: insertedDescriptions.length,
 			seededQRDocuments: qrSeedDocumentsWithIds,
 			seededQRDescriptionCount: insertedQRDescriptions.length,
+			seededSegmentationDocuments: segmentationSeedDocumentsWithIds,
 			agentRuns: {
 				goodRun: {
 					id: goodRun.id,
@@ -1299,10 +1717,22 @@ const seed = async () => {
 	);
 	console.log(`API Key ID (workflow 2): ${result.qualityReviewApiKey.id}`);
 	console.log(`API Key (plain, workflow 2): ${plainQualityReviewApiKey}`);
+	console.log(
+		`Device (workflow 3): ${result.segmentationDevice.slug} (${result.segmentationDevice.id})`,
+	);
+	console.log(`API Key ID (workflow 3): ${result.segmentationApiKey.id}`);
+	console.log(`API Key (plain, workflow 3): ${plainSegmentationApiKey}`);
 	console.log(`\nAgent Graph (workflow 1): ${result.pipelineGraph.id}`);
 	console.log(`Agent Graph (workflow 2): ${result.qualityReviewGraph.id}`);
+	console.log(`Agent Graph (workflow 3): ${result.segmentationGraph.id}`);
 	console.log(`CLIP Model: ${result.clipModel.id}`);
 	console.log(`GPT-4.1 Mini Model: ${result.gpt41MiniModel.id}`);
+	console.log(
+		`Semantic segmentation model: ${result.semanticSegmentationModel.id}`,
+	);
+	console.log(
+		`Language segmentation model: ${result.langSegmentationModel.id}`,
+	);
 	console.log(`Seeded documents (pipeline): ${result.seededDocuments.length}`);
 	console.log(
 		`Seeded descriptions (pipeline): ${result.seededDescriptionCount}`,
@@ -1321,6 +1751,14 @@ const seed = async () => {
 	for (const seededDocument of result.seededQRDocuments) {
 		console.log(
 			`  QR doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
+		);
+	}
+	console.log(
+		`Seeded documents (segmentation): ${result.seededSegmentationDocuments.length}`,
+	);
+	for (const seededDocument of result.seededSegmentationDocuments) {
+		console.log(
+			`  Segmentation doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
 		);
 	}
 	console.log("\nAgent Graph Runs (quality review):");

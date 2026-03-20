@@ -19,6 +19,7 @@ func StartServer() {
 
 	tools.RegisterCreateDocumentDescription(server)
 	tools.RegisterCreateDocumentEmbedding(server)
+	tools.RegisterCreateDocumentSegmentation(server)
 	tools.RegisterCreateDescriptionEmbedding(server)
 	tools.RegisterFindSimilarDocuments(server)
 	tools.RegisterFindSimilarDescriptions(server)

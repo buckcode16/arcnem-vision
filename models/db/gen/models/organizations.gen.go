@@ -16,7 +16,7 @@ type Organization struct {
 	Name      string    `gorm:"column:name;type:text;not null" json:"name"`
 	Slug      string    `gorm:"column:slug;type:text;not null" json:"slug"`
 	Logo      *string   `gorm:"column:logo;type:text" json:"logo"`
-	CreatedAt time.Time `gorm:"column:created_at;type:timestamp without time zone;not null" json:"created_at"`
+	CreatedAt time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
 	Metadata  *string   `gorm:"column:metadata;type:text" json:"metadata"`
 }
 

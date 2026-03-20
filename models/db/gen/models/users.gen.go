@@ -20,7 +20,7 @@ type User struct {
 	CreatedAt     time.Time  `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
 	UpdatedAt     time.Time  `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
 	Role          *string    `gorm:"column:role;type:text" json:"role"`
-	Banned        *bool      `gorm:"column:banned;type:boolean" json:"banned"`
+	Banned        bool       `gorm:"column:banned;type:boolean;not null" json:"banned"`
 	BanReason     *string    `gorm:"column:ban_reason;type:text" json:"ban_reason"`
 	BanExpires    *time.Time `gorm:"column:ban_expires;type:timestamp without time zone" json:"ban_expires"`
 }

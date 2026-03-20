@@ -19,6 +19,10 @@ type Model struct {
 	EmbeddingDim *int32    `gorm:"column:embedding_dim;type:integer" json:"embedding_dim"`
 	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
+	Version      string    `gorm:"column:version;type:text;not null" json:"version"`
+	InputSchema  *string   `gorm:"column:input_schema;type:jsonb" json:"input_schema"`
+	OutputSchema *string   `gorm:"column:output_schema;type:jsonb" json:"output_schema"`
+	Config       string    `gorm:"column:config;type:jsonb;not null;default:{}" json:"config"`
 }
 
 // TableName Model's table name

@@ -16,7 +16,7 @@ type Member struct {
 	OrganizationID string    `gorm:"column:organization_id;type:uuid;not null" json:"organization_id"`
 	UserID         string    `gorm:"column:user_id;type:uuid;not null" json:"user_id"`
 	Role           string    `gorm:"column:role;type:text;not null;default:member" json:"role"`
-	CreatedAt      time.Time `gorm:"column:created_at;type:timestamp without time zone;not null" json:"created_at"`
+	CreatedAt      time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
 }
 
 // TableName Member's table name

@@ -1,6 +1,7 @@
 package graphs
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -64,5 +65,51 @@ func TestDecodeToolOutput_IgnoresOutputWhenSchemaHasNoFields(t *testing.T) {
 	}
 	if len(out) != 0 {
 		t.Fatalf("expected empty output, got %v", out)
+	}
+}
+
+func TestResolveToolInputMappingValue_ObjectLiteral(t *testing.T) {
+	state := map[string]any{
+		"temp_url": "https://example.com/image.png",
+	}
+
+	got, ok := resolveToolInputMappingValue(map[string]any{
+		"text_prompt": "passport",
+		"threshold":   0.5,
+	}, state)
+	if !ok {
+		t.Fatal("expected literal object mapping to resolve")
+	}
+
+	want := map[string]any{
+		"text_prompt": "passport",
+		"threshold":   0.5,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestResolveToolInputMappingValue_StateLookup(t *testing.T) {
+	state := map[string]any{
+		"temp_url": "https://example.com/image.png",
+	}
+
+	got, ok := resolveToolInputMappingValue("temp_url", state)
+	if !ok {
+		t.Fatal("expected state lookup to resolve")
+	}
+	if got != "https://example.com/image.png" {
+		t.Fatalf("unexpected mapped value: %v", got)
+	}
+}
+
+func TestResolveToolInputMappingValue_StringConstant(t *testing.T) {
+	got, ok := resolveToolInputMappingValue("_const:REPLICATE", map[string]any{})
+	if !ok {
+		t.Fatal("expected string constant to resolve")
+	}
+	if got != "REPLICATE" {
+		t.Fatalf("expected REPLICATE, got %v", got)
 	}
 }

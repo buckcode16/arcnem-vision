@@ -1,5 +1,7 @@
 package tools
 
+import "encoding/json"
+
 type CreateDocumentEmbeddingInput struct {
 	DocumentID string `json:"document_id"`
 	TempURL    string `json:"temp_url"`
@@ -23,11 +25,28 @@ type CreateDocumentDescriptionInput struct {
 	Text          string `json:"text"`
 	ModelProvider string `json:"model_provider"`
 	ModelName     string `json:"model_name"`
+	ModelVersion  string `json:"model_version"`
 }
 
 type CreateDocumentDescriptionOutput struct {
 	DescriptionID string `json:"description_id"`
 	Text          string `json:"text"`
+}
+
+type CreateDocumentSegmentationInput struct {
+	DocumentID    string         `json:"document_id"`
+	TempURL       string         `json:"temp_url"`
+	ModelProvider string         `json:"model_provider"`
+	ModelName     string         `json:"model_name"`
+	ModelVersion  string         `json:"model_version"`
+	InputParams   map[string]any `json:"input_params"`
+}
+
+type CreateDocumentSegmentationOutput struct {
+	SegmentationID      string          `json:"segmentation_id"`
+	SegmentedDocumentID string          `json:"segmented_document_id,omitempty"`
+	SegmentedTempURL    string          `json:"segmented_temp_url,omitempty"`
+	Result              json.RawMessage `json:"result"`
 }
 
 type FindSimilarDocumentsInput struct {

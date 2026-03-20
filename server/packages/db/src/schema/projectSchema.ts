@@ -5,6 +5,7 @@ import {
 	customType,
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	text,
 	timestamp,
@@ -121,8 +122,12 @@ export const models = pgTable(
 		id: uuid("id").primaryKey().default(sql`uuidv7()`),
 		provider: text("provider").notNull(),
 		name: text("name").notNull(),
+		version: text("version").notNull().default(""),
 		type: text(),
 		embeddingDim: integer("embedding_dim"),
+		inputSchema: jsonb("input_schema"),
+		outputSchema: jsonb("output_schema"),
+		config: jsonb("config").notNull().default("{}"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()
@@ -130,7 +135,11 @@ export const models = pgTable(
 			.notNull(),
 	},
 	(table) => [
-		uniqueIndex("models_provider_name_unique").on(table.provider, table.name),
+		uniqueIndex("models_provider_name_version_unique").on(
+			table.provider,
+			table.name,
+			table.version,
+		),
 		check("models_embedding_dim_positive", sql`${table.embeddingDim} > 0`),
 	],
 );
@@ -201,6 +210,43 @@ export const documentDescriptions = pgTable(
 			table.modelId,
 		),
 		index("document_descriptions_model_id_idx").on(table.modelId),
+	],
+);
+
+export const documentSegmentations = pgTable(
+	"document_segmentations",
+	{
+		id: uuid("id").primaryKey().default(sql`uuidv7()`),
+		sourceDocumentId: uuid("source_document_id")
+			.notNull()
+			.references(() => documents.id, { onDelete: "cascade" }),
+		segmentedDocumentId: uuid("segmented_document_id").references(
+			() => documents.id,
+			{ onDelete: "set null" },
+		),
+		modelId: uuid("model_id")
+			.notNull()
+			.references(() => models.id, { onDelete: "restrict" }),
+		input: jsonb("input").notNull().default("{}"),
+		result: jsonb("result").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("document_segmentations_source_document_id_idx").on(
+			table.sourceDocumentId,
+		),
+		index("document_segmentations_segmented_document_id_idx").on(
+			table.segmentedDocumentId,
+		),
+		index("document_segmentations_model_id_idx").on(table.modelId),
+		index("document_segmentations_source_document_model_id_idx").on(
+			table.sourceDocumentId,
+			table.modelId,
+		),
 	],
 );
 

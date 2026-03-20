@@ -17,7 +17,7 @@ type Device struct {
 	Slug           string    `gorm:"column:slug;type:text;not null" json:"slug"`
 	OrganizationID string    `gorm:"column:organization_id;type:uuid;not null" json:"organization_id"`
 	ProjectID      string    `gorm:"column:project_id;type:uuid;not null" json:"project_id"`
-	AgentGraphID   *string   `gorm:"column:agent_graph_id;type:uuid" json:"agent_graph_id"`
+	AgentGraphID   string    `gorm:"column:agent_graph_id;type:uuid;not null" json:"agent_graph_id"`
 	CreatedAt      time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
 }

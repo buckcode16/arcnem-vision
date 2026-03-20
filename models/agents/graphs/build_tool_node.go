@@ -16,7 +16,9 @@ const constPrefix = "_const:"
 // It uses the tool's inputSchema/outputSchema for field names, with optional
 // input_mapping/output_mapping in the node config to rename state keys.
 // Mapped values prefixed with "_const:" are treated as literal constants
-// (e.g. "_const:OPENAI" → the string "OPENAI").
+// (e.g. "_const:OPENAI" → the string "OPENAI"). Non-string input_mapping values
+// are passed through as literal JSON constants, which allows tool configs to
+// provide structured input such as objects or arrays.
 func BuildToolNode(snapshotNode *SnapshotNode, mcpClient *clients.MCPClient) (*NodeToAdd, error) {
 	if len(snapshotNode.Tools) != 1 {
 		return nil, fmt.Errorf("tool node %q requires exactly 1 tool, got %d", snapshotNode.Node.NodeKey, len(snapshotNode.Tools))
@@ -28,7 +30,7 @@ func BuildToolNode(snapshotNode *SnapshotNode, mcpClient *clients.MCPClient) (*N
 	dbTool := snapshotNode.Tools[0]
 
 	var config struct {
-		InputMapping  map[string]string `json:"input_mapping"`
+		InputMapping  map[string]any    `json:"input_mapping"`
 		OutputMapping map[string]string `json:"output_mapping"`
 	}
 	if err := json.Unmarshal([]byte(snapshotNode.Node.Config), &config); err != nil {
@@ -54,11 +56,7 @@ func BuildToolNode(snapshotNode *SnapshotNode, mcpClient *clients.MCPClient) (*N
 			toolInput := make(map[string]any)
 			for _, field := range inputFields {
 				if mapped, ok := config.InputMapping[field]; ok {
-					if strings.HasPrefix(mapped, constPrefix) {
-						toolInput[field] = strings.TrimPrefix(mapped, constPrefix)
-						continue
-					}
-					if v, ok := state[mapped]; ok {
+					if v, ok := resolveToolInputMappingValue(mapped, state); ok {
 						toolInput[field] = v
 					}
 				} else if v, ok := state[field]; ok {
@@ -92,6 +90,19 @@ func BuildToolNode(snapshotNode *SnapshotNode, mcpClient *clients.MCPClient) (*N
 			return delta, nil
 		},
 	}, nil
+}
+
+func resolveToolInputMappingValue(mappingValue any, state map[string]any) (any, bool) {
+	mappedString, ok := mappingValue.(string)
+	if !ok {
+		return mappingValue, true
+	}
+	if strings.HasPrefix(mappedString, constPrefix) {
+		return strings.TrimPrefix(mappedString, constPrefix), true
+	}
+
+	value, exists := state[mappedString]
+	return value, exists
 }
 
 func decodeToolOutput(result *mcp.CallToolResult, outputFields []string) (map[string]any, error) {
