@@ -28,7 +28,7 @@ After step 3, Inngest fires `document/process.upload`. The agent graph takes it 
 
 Authentication uses better-auth with the API key plugin. API keys are scoped to org/project/device, stored as SHA-256 hashes. The Flutter client authenticates via API key verification. Redis is used as secondary session storage. The dashboard uses session-based auth.
 
-## Dashboard Documents Endpoint
+## Dashboard Documents Endpoints
 
 Dashboard document browsing and search use:
 
@@ -44,6 +44,46 @@ Notes:
 - Response shape:
   - `documents`: list of cards (`id`, `objectKey`, `contentType`, `sizeBytes`, `createdAt`, `description`, `thumbnailUrl`, `distance`)
   - `nextCursor`: pagination cursor (`null` for query-based search responses)
+
+Dashboard uploads use:
+
+```http
+POST /api/dashboard/documents/uploads/presign
+POST /api/dashboard/documents/uploads/ack
+```
+
+- `presign` issues a direct S3 upload target for a selected project.
+- `ack` verifies the upload, creates the document, and publishes a dashboard document event.
+
+Related segmented outputs for a source document use:
+
+```http
+GET /api/dashboard/documents/:id/segmentations
+```
+
+- Response shape:
+  - `segmentedResults`: derived image cards with `segmentationId`, `segmentationCreatedAt`, `modelLabel`, `prompt`, and nested `document`
+
+Queueing any saved workflow against a selected dashboard document uses:
+
+```http
+POST /api/dashboard/documents/:id/run
+```
+
+- Body: `{ "workflowId": "<agentGraphId>" }`
+- Response shape:
+  - `status`: always `queued`
+  - `documentId`, `workflowId`, `workflowName`
+
+## Dashboard Realtime Feed
+
+```http
+GET /api/realtime/dashboard
+```
+
+- Uses Server-Sent Events.
+- Document events: `document-created`, `description-upserted`, `segmentation-created`
+- Run events: `run-created`, `run-step-changed`, `run-finished`
 
 ## Health Checks
 

@@ -1,22 +1,34 @@
 ---
-title: Dashboard Workflow Editor
-description: Build agent orchestration workflows, assign tools to workers, and run semantic document search in the dashboard.
+title: Dashboard Operations
+description: Manage projects, devices, API keys, uploads, workflows, and live runs from the dashboard.
 ---
 
-The dashboard (`server/packages/dashboard`) is where operators configure orchestration without redeploying code.
+The dashboard (`server/packages/dashboard`) is the operator control room for Arcnem Vision. It covers configuration, ad-hoc uploads, and live run inspection without redeploying code.
 
-![Dashboard — Projects & Devices view](/dashboard-projects.png)
+![Dashboard — projects, devices, and API keys](/dashboard-projects.png)
 
 ## Tabs at a glance
 
-- **Projects & Devices**: assign a workflow to each device.
+- **Projects & Devices**: create projects, register devices, assign default workflows, and issue or rotate device API keys.
 - **Workflow Library**: create/edit graph workflows.
-- **Documents**: browse uploads and run embedding-based search.
-- **Runs**: view agent graph execution history and inspect per-step details.
+- **Docs**: browse seeded or live uploads, upload directly from the dashboard, inspect related segmented outputs, and queue workflows against any document.
+- **Runs**: monitor execution history with live updates as runs start, advance, and finish.
+
+## Projects, devices, and API keys
+
+1. Create a project.
+2. Add devices inside that project and choose the saved workflow each device should run by default.
+3. Create a device API key when the device is ready to upload.
+
+Notes:
+
+- The generated secret is shown once; afterward the dashboard keeps only the public identifier.
+- Existing keys can be renamed, disabled, or deleted without changing the device record.
+- Workflow assignment is per device, so one project can mix standard ingestion, quality review, and segmentation devices.
 
 ## Building workflows
 
-![Workflow Library with Document Processing Pipeline and Image Quality Review](/dashboard-workflows.png)
+![Workflow Library with document and segmentation workflows](/dashboard-workflows.png)
 
 Open **Workflow Library** and create a new workflow or edit an existing one.
 
@@ -45,50 +57,34 @@ For `tool` nodes, map tool schema fields to graph state keys:
 
 Literal input values can be passed with `_const:` (for example `_const:image/png`).
 
-## Validation rules before save
+Before save, the canvas enforces unique node keys, model requirements, one tool per tool node, valid supervisor membership, and entry-to-`END` reachability.
 
-The canvas enforces:
+Segmentation flows are ordinary workflows. The difference is the tool they call: versioned segmentation models are registered in the database and invoked through MCP.
 
-- Unique node keys
-- Valid node types (`worker`, `supervisor`, `tool`)
-- Model required for worker/supervisor
-- Exactly one tool on tool nodes
-- Valid supervisor membership (workers only, no duplicates)
-- At least one edge to `END`
-- Entry node must have a path to `END`
+## Docs: search, upload, and segmented results
 
-If save fails, fix the message shown in the editor and retry.
+![Docs tab with newer seeded images](/dashboard-docs.png)
 
-## Assign workflow to devices
+- Search by meaning uses semantic ranking first and falls back to lexical matching if there is no embedding seed.
+- **Add From Dashboard** uploads a one-off image into a project without binding it to a device.
+- Click any document to choose a different workflow and queue it without changing the source device's saved assignment.
 
-After saving a workflow:
+![Selected document with a related segmented result](/dashboard-docs-segmentation-detail.png)
 
-1. Go to **Projects & Devices**.
-2. Select a workflow for each device.
-3. Click **Apply** to persist assignment.
+- Derived segmented images stay attached to the source document and show the model label plus prompt used to create them.
+- Segmentation outputs are stored as real documents, so they can be described, browsed, and reused in later workflows.
 
-This controls which graph runs for that device's uploaded documents.
+## Runs and realtime updates
 
-## Semantic document search
+![Runs tab with expanded run details](/dashboard-run-detail.png)
 
-![Docs tab with seeded documents and semantic search](/dashboard-docs.png)
+- The dashboard subscribes to `/api/realtime/dashboard` via Server-Sent Events.
+- **Docs** refresh when documents are created, descriptions are written, or segmentation results are persisted.
+- **Runs** refresh when a run is created, when steps change, and when the run finishes.
+- Expand a run to inspect initial state, per-step state deltas, final state, timing, and errors.
 
-In **Documents**, search with natural language (example: `red bike by a window`).
+## Segmentation workflows
 
-- If the API finds a matching description seed, results are ranked by embedding distance.
-- If no seed is found, it falls back to lexical matching.
-- Matched cards show a similarity badge (for example `92% match`).
-
-Use this view to validate that the ingestion + embedding pipeline is producing useful retrieval behavior.
-
-## Viewing runs
-
-![Runs tab with expanded run showing supervisor routing steps](/dashboard-run-detail.png)
-
-The **Runs** tab lists every agent graph execution with its status, workflow name, timestamp, and duration.
-
-- **Status**: each run is marked `completed`, `running`, or `failed`.
-- **Expand a run** to see its steps. Each step shows the node key, execution order, duration, and the state delta it produced.
-- **Initial / Final State**: the full graph state before the first step and after the last step are shown as JSON.
-- **Errors**: if a run or step failed, the error message is displayed inline.
-- Older runs load on demand via **Load more**.
+- Versioned models in the `models` table can be marked as segmentation models and called from MCP.
+- `create_document_segmentation` stores both the raw result payload and any derived segmented image.
+- The seed includes language segmentation and semantic segmentation showcase workflows so you can test the dashboard end to end immediately.

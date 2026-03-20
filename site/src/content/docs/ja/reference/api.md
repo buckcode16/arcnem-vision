@@ -45,6 +45,46 @@ GET /api/dashboard/documents?organizationId=<orgId>&query=<text>&limit=<n>&curso
   - `documents`: カード配列（`id`, `objectKey`, `contentType`, `sizeBytes`, `createdAt`, `description`, `thumbnailUrl`, `distance`）
   - `nextCursor`: ページネーション用カーソル（`query` 検索時は `null`）
 
+ダッシュボードからのアップロードは次のエンドポイントを使います。
+
+```http
+POST /api/dashboard/documents/uploads/presign
+POST /api/dashboard/documents/uploads/ack
+```
+
+- `presign`: 選択したプロジェクト向けにS3直接アップロード先を発行
+- `ack`: アップロードを検証し、ドキュメントを作成してダッシュボード向けイベントを発行
+
+元画像に紐づくセグメンテーション結果の取得は次のエンドポイントです。
+
+```http
+GET /api/dashboard/documents/:id/segmentations
+```
+
+- レスポンス:
+  - `segmentedResults`: `segmentationId`, `segmentationCreatedAt`, `modelLabel`, `prompt`, ネストされた`document`を持つ派生画像カード
+
+選択したダッシュボード上のドキュメントに任意の保存済みワークフローを投入するには:
+
+```http
+POST /api/dashboard/documents/:id/run
+```
+
+- Body: `{ "workflowId": "<agentGraphId>" }`
+- レスポンス:
+  - `status`: 常に`queued`
+  - `documentId`, `workflowId`, `workflowName`
+
+## ダッシュボードのリアルタイムフィード
+
+```http
+GET /api/realtime/dashboard
+```
+
+- Server-Sent Eventsを使用
+- ドキュメントイベント: `document-created`, `description-upserted`, `segmentation-created`
+- 実行イベント: `run-created`, `run-step-changed`, `run-finished`
+
 ## ヘルスチェック
 
 ```

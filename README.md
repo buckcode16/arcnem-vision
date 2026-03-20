@@ -18,7 +18,7 @@
 
 ---
 
-Arcnem Vision is an open-source platform that turns images into understanding. Upload a photo from a Flutter app with on-device intelligence, and a swarm of AI agents — orchestrated by LangGraph, connected through MCP, and configured entirely from a database — will generate embeddings, write descriptions, and make everything searchable by meaning, not just metadata.
+Arcnem Vision is an open-source platform that turns images into understanding. Upload a photo from the Flutter app or directly from the dashboard, and a swarm of AI agents — orchestrated by LangGraph, connected through MCP, and configured entirely from a database — will generate embeddings, write descriptions, run segmentation models, and make everything searchable by meaning, not just metadata.
 
 Four languages. Five services. One pipeline from camera shutter to semantic search.
 
@@ -30,8 +30,10 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 - **GenUI chat interface** — The AI doesn't just reply with text. It generates real Flutter widgets at runtime — cards, galleries, interactive components — composed from JSON.
 - **On-device Gemma** — Intent parsing happens locally on the phone before anything hits the network. Private by default.
 - **CLIP vector search** — Images and their descriptions are embedded in the same 768-dimensional space. Search by image, by text, or by vibes.
-- **Visual workflow builder** — A React dashboard where you drag-and-drop agent graphs: workers, tools, supervisors, edges, the whole thing.
-- **MCP tools as a first-class primitive** — Five registered tools following the open Model Context Protocol standard. Agents call them. You can too.
+- **Dashboard control room** — Manage projects, devices, API keys, workflow assignments, and one-off dashboard uploads from the same UI.
+- **Visual workflow builder** — Drag-and-drop agent graphs with workers, tools, supervisors, edges, and reusable workflow templates.
+- **Realtime operator feedback** — The Docs and Runs tabs update as uploads land, descriptions finish, segmentations appear, and graph steps advance.
+- **MCP tools as a first-class primitive** — CLIP embeddings, descriptions, similarity search, and segmentation models all sit behind MCP. Agents call them. You can too.
 
 ## Tech Stack
 
@@ -39,9 +41,9 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 | ------------- | ---------------------------------------------- | -------------------------------------------------------------------------- |
 | **Client**    | Flutter, Dart, flutter_gemma, GenUI, fpdart    | Camera capture, on-device LLM, AI-generated UI, functional error handling  |
 | **API**       | Bun, Hono, better-auth, Inngest, Pino          | REST routes, presigned uploads, durable job scheduling, structured logging |
-| **Dashboard** | React 19, TanStack Router, Tailwind, shadcn/ui | Workflow builder, document viewer, admin interface                         |
+| **Dashboard** | React 19, TanStack Router, Tailwind, shadcn/ui | Workflow builder, project/device/API key management, live operations UI    |
 | **Agents**    | Go, Gin, LangGraph, LangChain, inngestgo       | Graph-based agent orchestration, ReAct workers, step-level tracing         |
-| **MCP**       | Go, MCP go-sdk, replicate-go, GORM             | CLIP embeddings, description generation, similarity search tools           |
+| **MCP**       | Go, MCP go-sdk, replicate-go, GORM             | CLIP embeddings, description generation, segmentation, similarity search   |
 | **Storage**   | Postgres 18 + pgvector, S3-compatible, Redis   | Vector indexes, object storage, session cache                              |
 
 ## Architecture
@@ -79,13 +81,13 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 |---|---|
 | ![Flutter Client](site/public/flutter-client.png) | ![Dashboard Projects](site/public/dashboard-projects.png) |
 
-| Workflow Library | Document Search |
+| Workflow Library | Docs Gallery |
 |---|---|
-| ![Workflow Library](site/public/dashboard-workflows.png) | ![Document Search](site/public/dashboard-docs.png) |
+| ![Workflow Library](site/public/dashboard-workflows.png) | ![Docs Gallery](site/public/dashboard-docs.png) |
 
-| Agent Run Details |
-|---|
-| ![Agent Run Details](site/public/dashboard-run-detail.png) |
+| Selected Document & Segmentation | Agent Run Details |
+|---|---|
+| ![Selected Document and Segmentation](site/public/dashboard-docs-segmentation-detail.png) | ![Agent Run Details](site/public/dashboard-run-detail.png) |
 
 **Agent graphs are data, not code.** Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Three node types:
 
@@ -152,7 +154,7 @@ That's it. Tilt installs all dependencies, starts Postgres/Redis/MinIO, runs mig
 
 ### 3. Seed the database
 
-In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
+In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, and segmentation showcase workflows. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
 
 ### Health checks
 

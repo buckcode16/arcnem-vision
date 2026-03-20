@@ -50,7 +50,7 @@ That's it. Tilt installs all dependencies, starts Postgres/Redis/MinIO, runs mig
 
 ## 3. Seed the database
 
-In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
+In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, and segmentation showcase workflows. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
 
 ## Health checks
 

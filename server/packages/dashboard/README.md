@@ -1,12 +1,13 @@
 # Arcnem Vision Dashboard
 
-React dashboard for managing projects, devices, agent workflows, and uploaded documents.
+React dashboard for managing projects, devices, API keys, workflows, uploaded documents, and live run inspection.
 
 ## What this package does
 
-- **Projects & Devices tab**: assign workflows to devices.
+- **Projects & Devices tab**: create projects, register devices, assign default workflows, and issue or rotate device API keys.
 - **Workflow Library tab**: create/edit graph workflows with a visual canvas.
-- **Documents tab**: browse uploads and run semantic search over embedded descriptions.
+- **Docs tab**: browse uploads, run semantic search, upload directly from the dashboard, inspect related segmented outputs, and queue workflows against any document.
+- **Runs tab**: inspect execution history and per-step state changes with realtime refresh.
 
 The dashboard runs as a TanStack Start app and talks to the API server for data and mutations.
 
@@ -42,11 +43,20 @@ Dev server runs on `http://localhost:3001`.
 - Tool nodes require exactly one tool and support input/output mapping
 - Graph validation enforces unique node keys, valid edges, and entry-to-`END` reachability
 
-## Semantic search notes
+## Document operations notes
 
 - Documents search is wired to `query` on `/api/dashboard/documents`
 - If a matching description is found, the API returns nearest semantic matches using embedding distance
 - If no semantic seed is found, the API falls back to lexical `ILIKE` matching
+- Dashboard uploads use `/api/dashboard/documents/uploads/presign` and `/api/dashboard/documents/uploads/ack`
+- Related segmentation outputs are fetched from `/api/dashboard/documents/:id/segmentations`
+- Selecting a document lets operators queue any saved workflow against it with `/api/dashboard/documents/:id/run`
+
+## Realtime notes
+
+- The dashboard subscribes to `/api/realtime/dashboard` with Server-Sent Events
+- Documents refresh on document creation, description updates, and segmentation creation
+- Runs refresh on run creation, step changes, and run completion
 
 ## Build
 

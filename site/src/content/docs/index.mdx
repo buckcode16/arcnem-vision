@@ -34,10 +34,13 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     Images and descriptions embedded in the same 768-dimensional space. Search by image, by text, or by vibes.
   </Card>
   <Card title="Visual workflow builder" icon="pencil">
-    A React dashboard where you drag-and-drop agent graphs: workers, tools, supervisors, edges, the whole thing.
+    A React dashboard where you create projects, register devices, issue API keys, and drag-and-drop agent graphs.
+  </Card>
+  <Card title="Realtime operator views" icon="bolt">
+    Documents and runs refresh as uploads land, descriptions finish, segmentations appear, and graph steps advance.
   </Card>
   <Card title="MCP tools as a first-class primitive" icon="open-book">
-    Five registered tools following the open Model Context Protocol standard. Agents call them. You can too.
+    Descriptions, CLIP embeddings, similarity search, and segmentation models are exposed through MCP. Agents call them. You can too.
   </Card>
 </CardGrid>
 
@@ -47,7 +50,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 |---|---|---|
 | **Client** | Flutter, Dart, flutter_gemma, GenUI, fpdart | Camera capture, on-device LLM, AI-generated UI, functional error handling |
 | **API** | Bun, Hono, better-auth, Inngest, Pino | REST routes, presigned uploads, durable job scheduling, structured logging |
-| **Dashboard** | React 19, TanStack Router, Tailwind, shadcn/ui | Workflow builder, document viewer, admin interface |
+| **Dashboard** | React 19, TanStack Router, Tailwind, shadcn/ui | Workflow builder, project/device/API key management, live operations UI |
 | **Agents** | Go, Gin, LangGraph, LangChain, inngestgo | Graph-based agent orchestration, ReAct workers, step-level tracing |
-| **MCP** | Go, MCP go-sdk, replicate-go, GORM | CLIP embeddings, description generation, similarity search tools |
+| **MCP** | Go, MCP go-sdk, replicate-go, GORM | CLIP embeddings, description generation, segmentation, similarity search |
 | **Storage** | Postgres 18 + pgvector, S3-compatible, Redis | Vector indexes, object storage, session cache |
