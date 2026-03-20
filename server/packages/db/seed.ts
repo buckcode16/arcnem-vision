@@ -33,6 +33,8 @@ const plainQualityReviewApiKey =
 	"seed_Q7p6N5m4L3k2J1h0G9f8D7s6A5z4X3c2V1b0N9m8K7j6H5g4F3d2S1a0P9o8";
 const plainSegmentationApiKey =
 	"seed_seg_G4m2L8p1Q7r9S3t5U6v0W2x4Y8z1A3b5C7d9E0f2H4j6K8m0N2p4";
+const plainSemanticSegmentationApiKey =
+	"seed_sem_H6n3P8q2R5s9T1u4V7w0X3y6Z8a2B4c6D9e1F3g5J7k9M0n2P4";
 const seedDashboardSessionToken =
 	"seed_dashboard_session_s4M8xR2vJ7nK1qP5wL9cD3fH6tY0uB4";
 const seedDocumentEmbeddingDim = 768;
@@ -99,12 +101,21 @@ const seedQualityReviewDocumentInputs = [
 	},
 ] as const satisfies ReadonlyArray<SeedDocumentInput>;
 
-const seedSegmentationDocumentInputs = [
+const seedLanguageSegmentationDocumentInputs = [
 	{
-		slug: "vintage-car-segmentation",
-		fileName: "vintage-car.jpg",
+		slug: "language-balloon-segmentation",
+		fileName: "language-balloon.png",
 		description:
-			"Vintage black car on a city street used for seeded semantic and language-prompted segmentation demos.",
+			"Centered red balloon on a clean background used for the seeded language-prompted segmentation demo.",
+	},
+] as const satisfies ReadonlyArray<SeedDocumentInput>;
+
+const seedSemanticSegmentationDocumentInputs = [
+	{
+		slug: "semantic-square-segmentation",
+		fileName: "semantic-square.png",
+		description:
+			"Centered square-on-square composition used for the seeded semantic segmentation demo.",
 	},
 ] as const satisfies ReadonlyArray<SeedDocumentInput>;
 
@@ -298,6 +309,9 @@ const seed = async () => {
 	const hashedPipelineApiKey = await hashApiKey(plainPipelineApiKey);
 	const hashedQualityReviewApiKey = await hashApiKey(plainQualityReviewApiKey);
 	const hashedSegmentationApiKey = await hashApiKey(plainSegmentationApiKey);
+	const hashedSemanticSegmentationApiKey = await hashApiKey(
+		plainSemanticSegmentationApiKey,
+	);
 	const { bucket, client: s3Client } = getSeedS3Client();
 	const uploadedSeedDocuments = await uploadSeedDocumentsToS3(
 		s3Client,
@@ -309,10 +323,15 @@ const seed = async () => {
 		seedQualityReviewDocumentInputs,
 		"seed/quality-review",
 	);
-	const uploadedSegmentationDocuments = await uploadSeedDocumentsToS3(
+	const uploadedLanguageSegmentationDocuments = await uploadSeedDocumentsToS3(
 		s3Client,
-		seedSegmentationDocumentInputs,
-		"seed/segmentations",
+		seedLanguageSegmentationDocumentInputs,
+		"seed/language-segmentations",
+	);
+	const uploadedSemanticSegmentationDocuments = await uploadSeedDocumentsToS3(
+		s3Client,
+		seedSemanticSegmentationDocumentInputs,
+		"seed/semantic-segmentations",
 	);
 
 	const result = await db.transaction(async (tx) => {
@@ -1405,7 +1424,7 @@ const seed = async () => {
 			},
 		]);
 
-		// ── Agent Graph (workflow 3: semantic segmentation + language-prompted segmentation) ──
+		// ── Agent Graph (workflow 3: language-prompted segmentation) ──
 
 		const [segmentationGraph] = await tx
 			.insert(agentGraphs)
@@ -1571,7 +1590,7 @@ const seed = async () => {
 		const insertedSegmentationDocuments = await tx
 			.insert(documents)
 			.values(
-				uploadedSegmentationDocuments.map((seedDocument) => ({
+				uploadedLanguageSegmentationDocuments.map((seedDocument) => ({
 					bucket,
 					objectKey: seedDocument.objectKey,
 					contentType: seedDocument.contentType,
@@ -1590,7 +1609,7 @@ const seed = async () => {
 			});
 		if (
 			insertedSegmentationDocuments.length !==
-			uploadedSegmentationDocuments.length
+			uploadedLanguageSegmentationDocuments.length
 		) {
 			throw new Error("Failed to insert segmentation seed documents");
 		}
@@ -1602,8 +1621,8 @@ const seed = async () => {
 			]),
 		);
 
-		const segmentationSeedDocumentsWithIds = uploadedSegmentationDocuments.map(
-			(seedDocument) => {
+		const segmentationSeedDocumentsWithIds =
+			uploadedLanguageSegmentationDocuments.map((seedDocument) => {
 				const documentId = segmentationDocumentIdByObjectKey.get(
 					seedDocument.objectKey,
 				);
@@ -1617,8 +1636,193 @@ const seed = async () => {
 					...seedDocument,
 					documentId,
 				};
+			});
+
+		// ── Agent Graph (workflow 4: semantic segmentation) ──
+
+		const [semanticSegmentationGraph] = await tx
+			.insert(agentGraphs)
+			.values({
+				name: "Semantic Document Segmentation Showcase",
+				description:
+					"Runs semantic segmentation on an image and summarizes the derived segmented output.",
+				entryNode: "semantic_segment",
+				organizationId: organization.id,
+			})
+			.returning({ id: agentGraphs.id });
+		if (!semanticSegmentationGraph) {
+			throw new Error("Failed to create semantic segmentation agent graph");
+		}
+
+		const [semanticSegmentNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "semantic_segment",
+				nodeType: "tool",
+				config: {
+					input_mapping: {
+						model_provider: "_const:REPLICATE",
+						model_name: "_const:cjwbw/semantic-segment-anything",
+						model_version: `_const:${semanticSegmentAnythingVersion}`,
+						input_params: {
+							output_json: true,
+						},
+					},
+					output_mapping: {
+						segmentation_id: "semantic_segmentation_id",
+						segmented_document_id: "semantic_segmented_document_id",
+						segmented_temp_url: "semantic_segmented_temp_url",
+						result: "semantic_segmentation_result",
+					},
+				},
+				agentGraphId: semanticSegmentationGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!semanticSegmentNode) {
+			throw new Error("Failed to create semantic_segment node");
+		}
+
+		const [describeSemanticSegmentNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "describe_semantic_segment",
+				nodeType: "worker",
+				inputKey: "semantic_segmented_temp_url",
+				outputKey: "semantic_segment_summary",
+				config: {
+					system_message:
+						"You are a segmentation analyst. Given a semantically segmented image, explain what regions or boundaries the mask appears to capture and whether the output looks coherent. Keep the response to one concise paragraph.",
+					max_iterations: 3,
+					input_mode: "image_url",
+					input_prompt:
+						"Describe the semantic segmentation result and the scene regions it appears to isolate.",
+				},
+				agentGraphId: semanticSegmentationGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!describeSemanticSegmentNode) {
+			throw new Error("Failed to create describe_semantic_segment node");
+		}
+
+		await tx.insert(agentGraphNodeTools).values([
+			{
+				agentGraphNodeId: semanticSegmentNode.id,
+				toolId: createDocSegTool.id,
 			},
+		]);
+
+		await tx.insert(agentGraphEdges).values([
+			{
+				fromNode: "semantic_segment",
+				toNode: "describe_semantic_segment",
+				agentGraphId: semanticSegmentationGraph.id,
+			},
+			{
+				fromNode: "describe_semantic_segment",
+				toNode: "END",
+				agentGraphId: semanticSegmentationGraph.id,
+			},
+		]);
+
+		const [semanticSegmentationDevice] = await tx
+			.insert(devices)
+			.values({
+				name: "Seed Semantic Segmentation Device",
+				slug: "seed-semantic-segmentation-device",
+				organizationId: organization.id,
+				projectId: project.id,
+				agentGraphId: semanticSegmentationGraph.id,
+			})
+			.returning({
+				id: devices.id,
+				slug: devices.slug,
+			});
+		if (!semanticSegmentationDevice) {
+			throw new Error("Failed to create semantic segmentation device");
+		}
+
+		const [semanticSegmentationApiKey] = await tx
+			.insert(apikeys)
+			.values({
+				name: "Seed Semantic Segmentation Device API Key",
+				start: plainSemanticSegmentationApiKey.slice(0, 6),
+				prefix: "seed",
+				key: hashedSemanticSegmentationApiKey,
+				userId: user.id,
+				organizationId: organization.id,
+				projectId: project.id,
+				deviceId: semanticSegmentationDevice.id,
+				enabled: true,
+				rateLimitEnabled: true,
+				rateLimitTimeWindow: 86_400_000,
+				rateLimitMax: 10,
+				requestCount: 0,
+				createdAt: now,
+				updatedAt: now,
+				permissions: JSON.stringify({ uploads: ["presign", "ack"] }),
+				metadata: JSON.stringify({
+					source: "seed.ts",
+					workflow: "semantic-segmentation-showcase",
+				}),
+			})
+			.returning({
+				id: apikeys.id,
+			});
+		if (!semanticSegmentationApiKey) {
+			throw new Error("Failed to create semantic segmentation API key");
+		}
+
+		const insertedSemanticSegmentationDocuments = await tx
+			.insert(documents)
+			.values(
+				uploadedSemanticSegmentationDocuments.map((seedDocument) => ({
+					bucket,
+					objectKey: seedDocument.objectKey,
+					contentType: seedDocument.contentType,
+					eTag: seedDocument.eTag,
+					sizeBytes: seedDocument.sizeBytes,
+					lastModifiedAt: seedDocument.lastModifiedAt,
+					visibility: "org",
+					organizationId: organization.id,
+					projectId: project.id,
+					deviceId: semanticSegmentationDevice.id,
+				})),
+			)
+			.returning({
+				id: documents.id,
+				objectKey: documents.objectKey,
+			});
+		if (
+			insertedSemanticSegmentationDocuments.length !==
+			uploadedSemanticSegmentationDocuments.length
+		) {
+			throw new Error("Failed to insert semantic segmentation seed documents");
+		}
+
+		const semanticSegmentationDocumentIdByObjectKey = new Map(
+			insertedSemanticSegmentationDocuments.map((document) => [
+				document.objectKey,
+				document.id,
+			]),
 		);
+
+		const semanticSegmentationSeedDocumentsWithIds =
+			uploadedSemanticSegmentationDocuments.map((seedDocument) => {
+				const documentId = semanticSegmentationDocumentIdByObjectKey.get(
+					seedDocument.objectKey,
+				);
+				if (!documentId) {
+					throw new Error(
+						`Failed to resolve semantic segmentation document id for ${seedDocument.objectKey}`,
+					);
+				}
+
+				return {
+					...seedDocument,
+					documentId,
+				};
+			});
 
 		return {
 			user,
@@ -1634,6 +1838,9 @@ const seed = async () => {
 			segmentationDevice,
 			segmentationApiKey,
 			segmentationGraph,
+			semanticSegmentationDevice,
+			semanticSegmentationApiKey,
+			semanticSegmentationGraph,
 			clipModel,
 			gpt41MiniModel,
 			semanticSegmentationModel,
@@ -1643,6 +1850,8 @@ const seed = async () => {
 			seededQRDocuments: qrSeedDocumentsWithIds,
 			seededQRDescriptionCount: insertedQRDescriptions.length,
 			seededSegmentationDocuments: segmentationSeedDocumentsWithIds,
+			seededSemanticSegmentationDocuments:
+				semanticSegmentationSeedDocumentsWithIds,
 			agentRuns: {
 				goodRun: {
 					id: goodRun.id,
@@ -1684,13 +1893,27 @@ const seed = async () => {
 	console.log(`API Key ID (workflow 2): ${result.qualityReviewApiKey.id}`);
 	console.log(`API Key (plain, workflow 2): ${plainQualityReviewApiKey}`);
 	console.log(
-		`Device (workflow 3): ${result.segmentationDevice.slug} (${result.segmentationDevice.id})`,
+		`Device (workflow 3, language segmentation): ${result.segmentationDevice.slug} (${result.segmentationDevice.id})`,
 	);
 	console.log(`API Key ID (workflow 3): ${result.segmentationApiKey.id}`);
 	console.log(`API Key (plain, workflow 3): ${plainSegmentationApiKey}`);
+	console.log(
+		`Device (workflow 4, semantic segmentation): ${result.semanticSegmentationDevice.slug} (${result.semanticSegmentationDevice.id})`,
+	);
+	console.log(
+		`API Key ID (workflow 4): ${result.semanticSegmentationApiKey.id}`,
+	);
+	console.log(
+		`API Key (plain, workflow 4): ${plainSemanticSegmentationApiKey}`,
+	);
 	console.log(`\nAgent Graph (workflow 1): ${result.pipelineGraph.id}`);
 	console.log(`Agent Graph (workflow 2): ${result.qualityReviewGraph.id}`);
-	console.log(`Agent Graph (workflow 3): ${result.segmentationGraph.id}`);
+	console.log(
+		`Agent Graph (workflow 3, language segmentation): ${result.segmentationGraph.id}`,
+	);
+	console.log(
+		`Agent Graph (workflow 4, semantic segmentation): ${result.semanticSegmentationGraph.id}`,
+	);
 	console.log(`CLIP Model: ${result.clipModel.id}`);
 	console.log(`GPT-4.1 Mini Model: ${result.gpt41MiniModel.id}`);
 	console.log(
@@ -1720,11 +1943,19 @@ const seed = async () => {
 		);
 	}
 	console.log(
-		`Seeded documents (segmentation): ${result.seededSegmentationDocuments.length}`,
+		`Seeded documents (language segmentation): ${result.seededSegmentationDocuments.length}`,
 	);
 	for (const seededDocument of result.seededSegmentationDocuments) {
 		console.log(
-			`  Segmentation doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
+			`  Language segmentation doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
+		);
+	}
+	console.log(
+		`Seeded documents (semantic segmentation): ${result.seededSemanticSegmentationDocuments.length}`,
+	);
+	for (const seededDocument of result.seededSemanticSegmentationDocuments) {
+		console.log(
+			`  Semantic segmentation doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
 		);
 	}
 	console.log("\nAgent Graph Runs (quality review):");
