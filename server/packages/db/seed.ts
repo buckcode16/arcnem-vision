@@ -73,10 +73,10 @@ const seedDocumentInputs = [
 			"Low-angle photograph of a vintage black car parked on a city street with warm sepia tones.",
 	},
 	{
-		slug: "grazing-pigs",
-		fileName: "grazing-pigs.jpg",
+		slug: "brown-dogs",
+		fileName: "brown-dogs.jpg",
 		description:
-			"Two reddish-brown pigs grazing in bright green grass with a blue fence softly blurred behind them.",
+			"Two reddish-brown dogs sniffing bright green grass with a blue fence softly blurred behind them.",
 	},
 ] as const satisfies ReadonlyArray<SeedDocumentInput>;
 
