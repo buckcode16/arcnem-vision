@@ -27,6 +27,7 @@ type supervisorConfig struct {
 	MaxIterations  int      `json:"max_iterations"`
 	InputMode      string   `json:"input_mode"`
 	InputPrompt    string   `json:"input_prompt"`
+	FinishTarget   string   `json:"finish_target"`
 	TimeoutSeconds int      `json:"timeout_seconds"`
 }
 
@@ -38,6 +39,7 @@ func parseSupervisorConfig(snapshotNode *SnapshotNode) (supervisorConfig, error)
 	if len(cfg.Members) == 0 {
 		return supervisorConfig{}, fmt.Errorf("supervisor node %q: config must specify \"members\"", snapshotNode.Node.NodeKey)
 	}
+	cfg.FinishTarget = strings.TrimSpace(cfg.FinishTarget)
 	if cfg.MaxIterations <= 0 {
 		cfg.MaxIterations = defaultSupervisorMaxIterations
 	}
@@ -275,6 +277,9 @@ func BuildSupervisorRoutingNode(
 	conditionalEdgeFn := func(_ context.Context, state map[string]any) string {
 		next, _ := state[supervisorNextKey].(string)
 		if next == "FINISH" || next == "" {
+			if cfg.FinishTarget != "" {
+				return cfg.FinishTarget
+			}
 			return graph.END
 		}
 		return next

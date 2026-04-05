@@ -14,6 +14,7 @@ import {
 	documentDescriptionEmbeddings,
 	documentDescriptions,
 	documentEmbeddings,
+	documentOCRResults,
 	documents,
 	members,
 	models,
@@ -35,6 +36,10 @@ const plainSegmentationApiKey =
 	"seed_seg_G4m2L8p1Q7r9S3t5U6v0W2x4Y8z1A3b5C7d9E0f2H4j6K8m0N2p4";
 const plainSemanticSegmentationApiKey =
 	"seed_sem_H6n3P8q2R5s9T1u4V7w0X3y6Z8a2B4c6D9e1F3g5J7k9M0n2P4";
+const plainOCRConditionApiKey =
+	"seed_ocr_cond_D9m2P5q8R1s4T7u0V3w6X9y2Z5a8B1c4D7e0F3g6H9j2";
+const plainOCRSupervisorApiKey =
+	"seed_ocr_sup_G7n4Q1r8S5t2U9v6W3x0Y7z4A1b8C5d2E9f6G3h0J7k4";
 const seedDashboardSessionToken =
 	"seed_dashboard_session_s4M8xR2vJ7nK1qP5wL9cD3fH6tY0uB4";
 const seedDocumentEmbeddingDim = 768;
@@ -42,6 +47,10 @@ const semanticSegmentAnythingVersion =
 	"b2691db53f2d96add0051a4a98e7a3861bd21bf5972031119d344d956d2f8256";
 const langSegmentAnythingVersion =
 	"891411c38a6ed2d44c004b7b9e44217df7a5b07848f29ddefd2e28bc7cbf93bc";
+const deepseekOCRVersion =
+	"cb3b474fbfc56b1664c8c7841550bccecbe7b74c30e45ce938ffca1180b4dff5";
+const dotsOCRVersion =
+	"91ce60f4885d7ca6e095755e25d0f9ff2bcfe963c816937ece4be50d811f26c4";
 
 const S3_ENV_VAR = {
 	S3_ACCESS_KEY_ID: "S3_ACCESS_KEY_ID",
@@ -57,6 +66,12 @@ type SeedDocumentInput = {
 	slug: string;
 	fileName: string;
 	description: string;
+};
+
+type SeedOCRDocumentInput = SeedDocumentInput & {
+	ocrText: string;
+	savedSummary: string;
+	avgConfidence?: number;
 };
 
 const seedDocumentInputs = [
@@ -119,6 +134,53 @@ const seedSemanticSegmentationDocumentInputs = [
 	},
 ] as const satisfies ReadonlyArray<SeedDocumentInput>;
 
+const seedConditionOCRDocumentInputs = [
+	{
+		slug: "ocr-urgent-notice",
+		fileName: "ocr-urgent-notice.png",
+		description:
+			"Printed urgent warehouse notice with a bold red heading and short handling instructions.",
+		ocrText: "URGENT\nDock 3 temperature alert\nInspect pallet 7 before 5 PM.",
+		savedSummary:
+			"Urgent warehouse notice calling out a temperature alert at Dock 3 and directing staff to inspect pallet 7 before 5 PM.",
+	},
+	{
+		slug: "ocr-general-notice",
+		fileName: "ocr-general-notice.png",
+		description:
+			"Routine schedule update posted on a clean blue-and-white operations sheet.",
+		ocrText:
+			"SCHEDULE UPDATE\nNext pickup window: Tuesday 10:30 AM\nBring badge and packing list.",
+		savedSummary:
+			"Routine schedule notice announcing the next pickup window on Tuesday at 10:30 AM and reminding staff to bring a badge and packing list.",
+	},
+] as const satisfies ReadonlyArray<SeedOCRDocumentInput>;
+
+const seedSupervisorOCRDocumentInputs = [
+	{
+		slug: "ocr-invoice-review",
+		fileName: "ocr-invoice-review.png",
+		description:
+			"Compact invoice layout with vendor, invoice number, total due, and due date.",
+		ocrText:
+			"INVOICE\nNorthwind Supply\nInvoice #1048\nTotal Due: $482.15\nDue Date: May 12",
+		savedSummary:
+			"Billing OCR review summarizing a Northwind Supply invoice numbered 1048 with a total due of $482.15 and a due date of May 12.",
+		avgConfidence: 94,
+	},
+	{
+		slug: "ocr-operations-review",
+		fileName: "ocr-operations-review.png",
+		description:
+			"Operations memo listing an opening time, inspection task, and named shift lead.",
+		ocrText:
+			"OPERATIONS MEMO\nOpen lobby at 8:30 AM\nInspect cold storage seals\nShift lead: Maya Chen",
+		savedSummary:
+			"Operations OCR review highlighting a memo to open the lobby at 8:30 AM, inspect cold storage seals, and coordinate with shift lead Maya Chen.",
+		avgConfidence: 89,
+	},
+] as const satisfies ReadonlyArray<SeedOCRDocumentInput>;
+
 const semanticSegmentationInputSchema = {
 	type: "object",
 	properties: {
@@ -172,6 +234,73 @@ const langSegmentationModelConfig = {
 	result_path: "$",
 	result_source: "raw",
 	output_image_path: "$",
+} as const;
+
+const deepseekOCRInputSchema = {
+	type: "object",
+	properties: {
+		image: { type: "string", description: "Input image" },
+		task_type: {
+			type: "string",
+			enum: ["General OCR", "Convert to Markdown", "Table OCR", "Formula OCR"],
+		},
+		reference_text: { type: "string" },
+		resolution_size: {
+			type: "string",
+			enum: ["1024", "768", "1280"],
+		},
+	},
+	required: ["image"],
+} as const;
+
+const deepseekOCROutputSchema = {
+	type: "string",
+} as const;
+
+const deepseekOCRModelConfig = {
+	input_image_field: "image",
+	input_defaults: {
+		task_type: "Convert to Markdown",
+	},
+	ocr_adapter: "deepseek_markdown",
+} as const;
+
+const dotsOCRInputSchema = {
+	type: "object",
+	properties: {
+		image: { type: "string", description: "Input image" },
+		return_confidence: { type: "boolean", default: true },
+		confidence_threshold: { type: "number", default: 0.7 },
+	},
+	required: ["image"],
+} as const;
+
+const dotsOCROutputSchema = {
+	type: "object",
+	properties: {
+		text: { type: "string" },
+		avg_confidence: { type: "number" },
+		low_confidence_count: { type: "number" },
+		word_confidences: {
+			type: "array",
+			items: {
+				type: "object",
+				properties: {
+					word: { type: "string" },
+					confidence: { type: "number" },
+				},
+			},
+		},
+	},
+} as const;
+
+const dotsOCRModelConfig = {
+	input_image_field: "image",
+	input_defaults: {
+		return_confidence: true,
+		confidence_threshold: 0.7,
+	},
+	ocr_adapter: "dots_confidence",
 } as const;
 
 type UploadedSeedDocument = {
@@ -312,6 +441,8 @@ const seed = async () => {
 	const hashedSemanticSegmentationApiKey = await hashApiKey(
 		plainSemanticSegmentationApiKey,
 	);
+	const hashedOCRConditionApiKey = await hashApiKey(plainOCRConditionApiKey);
+	const hashedOCRSupervisorApiKey = await hashApiKey(plainOCRSupervisorApiKey);
 	const { bucket, client: s3Client } = getSeedS3Client();
 	const uploadedSeedDocuments = await uploadSeedDocumentsToS3(
 		s3Client,
@@ -333,6 +464,16 @@ const seed = async () => {
 		seedSemanticSegmentationDocumentInputs,
 		"seed/semantic-segmentations",
 	);
+	const uploadedConditionOCRDocuments = await uploadSeedDocumentsToS3(
+		s3Client,
+		seedConditionOCRDocumentInputs,
+		"seed/ocr-condition",
+	);
+	const uploadedSupervisorOCRDocuments = await uploadSeedDocumentsToS3(
+		s3Client,
+		seedSupervisorOCRDocumentInputs,
+		"seed/ocr-supervisor",
+	);
 
 	const result = await db.transaction(async (tx) => {
 		await tx.execute(sql`
@@ -347,6 +488,7 @@ const seed = async () => {
 				"document_segmentations",
 				"document_description_embeddings",
 				"document_descriptions",
+				"document_ocr_results",
 				"document_embeddings",
 				"documents",
 				"presigned_uploads",
@@ -494,6 +636,38 @@ const seed = async () => {
 			throw new Error("Failed to create language segmentation model");
 		}
 
+		const [deepseekOCRModel] = await tx
+			.insert(models)
+			.values({
+				provider: "REPLICATE",
+				name: "lucataco/deepseek-ocr",
+				version: deepseekOCRVersion,
+				type: "ocr",
+				inputSchema: deepseekOCRInputSchema,
+				outputSchema: deepseekOCROutputSchema,
+				config: deepseekOCRModelConfig,
+			})
+			.returning({ id: models.id });
+		if (!deepseekOCRModel) {
+			throw new Error("Failed to create DeepSeek OCR model");
+		}
+
+		const [dotsOCRModel] = await tx
+			.insert(models)
+			.values({
+				provider: "REPLICATE",
+				name: "mind-ware/dots-ocr-with-confidence",
+				version: dotsOCRVersion,
+				type: "ocr",
+				inputSchema: dotsOCRInputSchema,
+				outputSchema: dotsOCROutputSchema,
+				config: dotsOCRModelConfig,
+			})
+			.returning({ id: models.id });
+		if (!dotsOCRModel) {
+			throw new Error("Failed to create DOTS OCR model");
+		}
+
 		// ── Tools ──
 
 		const [createDocDescTool] = await tx
@@ -596,6 +770,46 @@ const seed = async () => {
 			.returning({ id: tools.id });
 		if (!createDocSegTool)
 			throw new Error("Failed to create create_document_segmentation tool");
+
+		const [createDocOCRTool] = await tx
+			.insert(tools)
+			.values({
+				name: "create_document_ocr",
+				description:
+					"Generate OCR text with a versioned model, normalize the result, and persist it for a document.",
+				inputSchema: {
+					type: "object",
+					properties: {
+						document_id: { type: "string" },
+						temp_url: { type: "string" },
+						model_provider: { type: "string" },
+						model_name: { type: "string" },
+						model_version: { type: "string" },
+						input_params: { type: "object" },
+					},
+					required: [
+						"document_id",
+						"temp_url",
+						"model_provider",
+						"model_name",
+						"model_version",
+					],
+				},
+				outputSchema: {
+					type: "object",
+					properties: {
+						ocr_result_id: { type: "string" },
+						text: { type: "string" },
+						avg_confidence: {
+							type: ["number", "null"],
+						},
+						result: {},
+					},
+				},
+			})
+			.returning({ id: tools.id });
+		if (!createDocOCRTool)
+			throw new Error("Failed to create create_document_ocr tool");
 
 		const [createDescEmbTool] = await tx
 			.insert(tools)
@@ -1824,6 +2038,1006 @@ const seed = async () => {
 				};
 			});
 
+		// ── Agent Graph (workflow 5: deterministic OCR keyword routing) ──
+
+		const [ocrConditionGraph] = await tx
+			.insert(agentGraphs)
+			.values({
+				name: "OCR Keyword Condition Router",
+				description:
+					"Extracts OCR text, branches deterministically on keywords, and saves a specialist summary.",
+				entryNode: "extract_ocr",
+				organizationId: organization.id,
+			})
+			.returning({ id: agentGraphs.id });
+		if (!ocrConditionGraph) {
+			throw new Error("Failed to create OCR condition graph");
+		}
+
+		const [extractOCRNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "extract_ocr",
+				nodeType: "tool",
+				config: {
+					input_mapping: {
+						model_provider: "_const:REPLICATE",
+						model_name: "_const:lucataco/deepseek-ocr",
+						model_version: `_const:${deepseekOCRVersion}`,
+						input_params: {
+							task_type: "_const:Convert to Markdown",
+						},
+					},
+					output_mapping: {
+						ocr_result_id: "ocr_result_id",
+						text: "ocr_text",
+						result: "ocr_raw_result",
+					},
+				},
+				agentGraphId: ocrConditionGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!extractOCRNode) {
+			throw new Error("Failed to create extract_ocr node");
+		}
+
+		const [routeKeywordNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "route_keyword",
+				nodeType: "condition",
+				outputKey: "contains_urgent",
+				config: {
+					source_key: "ocr_text",
+					operator: "contains",
+					value: "URGENT",
+					case_sensitive: false,
+					true_target: "urgent_notice_specialist",
+					false_target: "general_notice_specialist",
+				},
+				agentGraphId: ocrConditionGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!routeKeywordNode) {
+			throw new Error("Failed to create route_keyword node");
+		}
+
+		const [urgentNoticeSpecialistNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "urgent_notice_specialist",
+				nodeType: "worker",
+				inputKey: "ocr_text",
+				outputKey: "notice_summary",
+				config: {
+					system_message:
+						"You review OCR text for urgent operational notices. Summarize the alert, the action required, and the deadline in one concise paragraph.",
+					max_iterations: 3,
+					input_prompt:
+						"Summarize why this OCR result should be treated as urgent and what action it requires.",
+				},
+				agentGraphId: ocrConditionGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!urgentNoticeSpecialistNode) {
+			throw new Error("Failed to create urgent_notice_specialist node");
+		}
+
+		const [generalNoticeSpecialistNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "general_notice_specialist",
+				nodeType: "worker",
+				inputKey: "ocr_text",
+				outputKey: "notice_summary",
+				config: {
+					system_message:
+						"You review OCR text for routine notices. Summarize the main schedule or instruction in one concise paragraph without escalating urgency.",
+					max_iterations: 3,
+					input_prompt:
+						"Summarize the routine notice and the main instruction from this OCR result.",
+				},
+				agentGraphId: ocrConditionGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!generalNoticeSpecialistNode) {
+			throw new Error("Failed to create general_notice_specialist node");
+		}
+
+		const [saveNoticeSummaryNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "save_notice_summary",
+				nodeType: "tool",
+				config: {
+					input_mapping: {
+						text: "notice_summary",
+						model_provider: "_const:OPENAI",
+						model_name: "_const:gpt-4.1-mini",
+						model_version: "_const:",
+					},
+				},
+				agentGraphId: ocrConditionGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!saveNoticeSummaryNode) {
+			throw new Error("Failed to create save_notice_summary node");
+		}
+
+		await tx.insert(agentGraphNodeTools).values([
+			{
+				agentGraphNodeId: extractOCRNode.id,
+				toolId: createDocOCRTool.id,
+			},
+			{
+				agentGraphNodeId: saveNoticeSummaryNode.id,
+				toolId: createDocDescTool.id,
+			},
+		]);
+
+		await tx.insert(agentGraphEdges).values([
+			{
+				fromNode: "extract_ocr",
+				toNode: "route_keyword",
+				agentGraphId: ocrConditionGraph.id,
+			},
+			{
+				fromNode: "route_keyword",
+				toNode: "urgent_notice_specialist",
+				agentGraphId: ocrConditionGraph.id,
+			},
+			{
+				fromNode: "route_keyword",
+				toNode: "general_notice_specialist",
+				agentGraphId: ocrConditionGraph.id,
+			},
+			{
+				fromNode: "urgent_notice_specialist",
+				toNode: "save_notice_summary",
+				agentGraphId: ocrConditionGraph.id,
+			},
+			{
+				fromNode: "general_notice_specialist",
+				toNode: "save_notice_summary",
+				agentGraphId: ocrConditionGraph.id,
+			},
+			{
+				fromNode: "save_notice_summary",
+				toNode: "END",
+				agentGraphId: ocrConditionGraph.id,
+			},
+		]);
+
+		const [ocrConditionDevice] = await tx
+			.insert(devices)
+			.values({
+				name: "Seed OCR Condition Device",
+				slug: "seed-ocr-condition-device",
+				organizationId: organization.id,
+				projectId: project.id,
+				agentGraphId: ocrConditionGraph.id,
+			})
+			.returning({
+				id: devices.id,
+				slug: devices.slug,
+			});
+		if (!ocrConditionDevice) {
+			throw new Error("Failed to create OCR condition device");
+		}
+
+		const [ocrConditionApiKey] = await tx
+			.insert(apikeys)
+			.values({
+				name: "Seed OCR Condition API Key",
+				start: plainOCRConditionApiKey.slice(0, 6),
+				prefix: "seed",
+				key: hashedOCRConditionApiKey,
+				userId: user.id,
+				organizationId: organization.id,
+				projectId: project.id,
+				deviceId: ocrConditionDevice.id,
+				enabled: true,
+				rateLimitEnabled: true,
+				rateLimitTimeWindow: 86_400_000,
+				rateLimitMax: 10,
+				requestCount: 0,
+				createdAt: now,
+				updatedAt: now,
+				permissions: JSON.stringify({ uploads: ["presign", "ack"] }),
+				metadata: JSON.stringify({
+					source: "seed.ts",
+					workflow: "ocr-condition",
+				}),
+			})
+			.returning({
+				id: apikeys.id,
+			});
+		if (!ocrConditionApiKey) {
+			throw new Error("Failed to create OCR condition API key");
+		}
+
+		const insertedConditionOCRDocuments = await tx
+			.insert(documents)
+			.values(
+				uploadedConditionOCRDocuments.map((seedDocument) => ({
+					bucket,
+					objectKey: seedDocument.objectKey,
+					contentType: seedDocument.contentType,
+					eTag: seedDocument.eTag,
+					sizeBytes: seedDocument.sizeBytes,
+					lastModifiedAt: seedDocument.lastModifiedAt,
+					visibility: "org",
+					organizationId: organization.id,
+					projectId: project.id,
+					deviceId: ocrConditionDevice.id,
+				})),
+			)
+			.returning({
+				id: documents.id,
+				objectKey: documents.objectKey,
+			});
+		if (
+			insertedConditionOCRDocuments.length !==
+			uploadedConditionOCRDocuments.length
+		) {
+			throw new Error("Failed to insert OCR condition documents");
+		}
+
+		const conditionOCRDocumentIdByObjectKey = new Map(
+			insertedConditionOCRDocuments.map((document) => [
+				document.objectKey,
+				document.id,
+			]),
+		);
+
+		const conditionOCRDocumentsWithIds = uploadedConditionOCRDocuments.map(
+			(seedDocument) => {
+				const documentId = conditionOCRDocumentIdByObjectKey.get(
+					seedDocument.objectKey,
+				);
+				if (!documentId) {
+					throw new Error(
+						`Failed to resolve OCR condition document id for ${seedDocument.objectKey}`,
+					);
+				}
+
+				const seedInput = seedConditionOCRDocumentInputs.find(
+					(input) => input.slug === seedDocument.slug,
+				);
+				if (!seedInput) {
+					throw new Error(
+						`Missing OCR condition seed input for ${seedDocument.slug}`,
+					);
+				}
+
+				return {
+					...seedDocument,
+					documentId,
+					ocrText: seedInput.ocrText,
+					savedSummary: seedInput.savedSummary,
+				};
+			},
+		);
+
+		const insertedConditionDescriptions = await tx
+			.insert(documentDescriptions)
+			.values(
+				conditionOCRDocumentsWithIds.map((seedDocument) => ({
+					documentId: seedDocument.documentId,
+					modelId: gpt41MiniModel.id,
+					text: seedDocument.savedSummary,
+				})),
+			)
+			.returning({
+				id: documentDescriptions.id,
+				documentId: documentDescriptions.documentId,
+			});
+		if (
+			insertedConditionDescriptions.length !==
+			conditionOCRDocumentsWithIds.length
+		) {
+			throw new Error("Failed to insert OCR condition descriptions");
+		}
+
+		const insertedConditionOCRResults = await tx
+			.insert(documentOCRResults)
+			.values(
+				conditionOCRDocumentsWithIds.map((seedDocument) => ({
+					documentId: seedDocument.documentId,
+					modelId: deepseekOCRModel.id,
+					input: {
+						task_type: "Convert to Markdown",
+					},
+					text: seedDocument.ocrText,
+					result: {
+						markdown: seedDocument.ocrText,
+					},
+				})),
+			)
+			.returning({
+				id: documentOCRResults.id,
+				documentId: documentOCRResults.documentId,
+			});
+
+		const conditionOCRResultIdByDocumentId = new Map(
+			insertedConditionOCRResults.map((row) => [row.documentId, row.id]),
+		);
+		const conditionDescriptionIdByDocumentId = new Map(
+			insertedConditionDescriptions.map((row) => [row.documentId, row.id]),
+		);
+
+		// ── Agent Graph (workflow 6: OCR supervisor review) ──
+
+		const [ocrSupervisorGraph] = await tx
+			.insert(agentGraphs)
+			.values({
+				name: "OCR Review Supervisor",
+				description:
+					"Extracts OCR text with confidence metadata, routes it through an LLM supervisor, and saves the final review summary.",
+				entryNode: "extract_ocr_confident",
+				organizationId: organization.id,
+			})
+			.returning({ id: agentGraphs.id });
+		if (!ocrSupervisorGraph) {
+			throw new Error("Failed to create OCR supervisor graph");
+		}
+
+		const [extractOCRConfidentNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "extract_ocr_confident",
+				nodeType: "tool",
+				config: {
+					input_mapping: {
+						model_provider: "_const:REPLICATE",
+						model_name: "_const:mind-ware/dots-ocr-with-confidence",
+						model_version: `_const:${dotsOCRVersion}`,
+						input_params: {
+							return_confidence: true,
+							confidence_threshold: 0.7,
+						},
+					},
+					output_mapping: {
+						ocr_result_id: "ocr_result_id",
+						text: "ocr_text",
+						avg_confidence: "ocr_avg_confidence",
+						result: "ocr_raw_result",
+					},
+				},
+				agentGraphId: ocrSupervisorGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!extractOCRConfidentNode) {
+			throw new Error("Failed to create extract_ocr_confident node");
+		}
+
+		const [billingOCRSpecialistNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "billing_ocr_specialist",
+				nodeType: "worker",
+				config: {
+					system_message:
+						"You are the billing OCR specialist. When the OCR text looks like an invoice, receipt, bill, or payment request, summarize the vendor, amount, due date, and next billing action in one concise paragraph.",
+					max_iterations: 3,
+				},
+				agentGraphId: ocrSupervisorGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!billingOCRSpecialistNode) {
+			throw new Error("Failed to create billing_ocr_specialist node");
+		}
+
+		const [operationsOCRSpecialistNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "operations_ocr_specialist",
+				nodeType: "worker",
+				config: {
+					system_message:
+						"You are the operations OCR specialist. When the OCR text looks like a memo, checklist, schedule, or facilities instruction, summarize the operational action items, timing, and owner in one concise paragraph.",
+					max_iterations: 3,
+				},
+				agentGraphId: ocrSupervisorGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!operationsOCRSpecialistNode) {
+			throw new Error("Failed to create operations_ocr_specialist node");
+		}
+
+		const [ocrReviewSupervisorNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "ocr_review_supervisor",
+				nodeType: "supervisor",
+				inputKey: "ocr_text",
+				outputKey: "ocr_review_summary",
+				config: {
+					members: ["billing_ocr_specialist", "operations_ocr_specialist"],
+					input_prompt:
+						"Route this OCR text to exactly one specialist. After the specialist responds, finish and hand off to save_review_summary.",
+					max_iterations: 6,
+					finish_target: "save_review_summary",
+				},
+				agentGraphId: ocrSupervisorGraph.id,
+				modelId: gpt41MiniModel.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!ocrReviewSupervisorNode) {
+			throw new Error("Failed to create ocr_review_supervisor node");
+		}
+
+		const [saveReviewSummaryNode] = await tx
+			.insert(agentGraphNodes)
+			.values({
+				nodeKey: "save_review_summary",
+				nodeType: "tool",
+				config: {
+					input_mapping: {
+						text: "ocr_review_summary",
+						model_provider: "_const:OPENAI",
+						model_name: "_const:gpt-4.1-mini",
+						model_version: "_const:",
+					},
+				},
+				agentGraphId: ocrSupervisorGraph.id,
+			})
+			.returning({ id: agentGraphNodes.id });
+		if (!saveReviewSummaryNode) {
+			throw new Error("Failed to create save_review_summary node");
+		}
+
+		await tx.insert(agentGraphNodeTools).values([
+			{
+				agentGraphNodeId: extractOCRConfidentNode.id,
+				toolId: createDocOCRTool.id,
+			},
+			{
+				agentGraphNodeId: saveReviewSummaryNode.id,
+				toolId: createDocDescTool.id,
+			},
+		]);
+
+		await tx.insert(agentGraphEdges).values([
+			{
+				fromNode: "extract_ocr_confident",
+				toNode: "ocr_review_supervisor",
+				agentGraphId: ocrSupervisorGraph.id,
+			},
+			{
+				fromNode: "ocr_review_supervisor",
+				toNode: "save_review_summary",
+				agentGraphId: ocrSupervisorGraph.id,
+			},
+			{
+				fromNode: "save_review_summary",
+				toNode: "END",
+				agentGraphId: ocrSupervisorGraph.id,
+			},
+		]);
+
+		const [ocrSupervisorDevice] = await tx
+			.insert(devices)
+			.values({
+				name: "Seed OCR Supervisor Device",
+				slug: "seed-ocr-supervisor-device",
+				organizationId: organization.id,
+				projectId: project.id,
+				agentGraphId: ocrSupervisorGraph.id,
+			})
+			.returning({
+				id: devices.id,
+				slug: devices.slug,
+			});
+		if (!ocrSupervisorDevice) {
+			throw new Error("Failed to create OCR supervisor device");
+		}
+
+		const [ocrSupervisorApiKey] = await tx
+			.insert(apikeys)
+			.values({
+				name: "Seed OCR Supervisor API Key",
+				start: plainOCRSupervisorApiKey.slice(0, 6),
+				prefix: "seed",
+				key: hashedOCRSupervisorApiKey,
+				userId: user.id,
+				organizationId: organization.id,
+				projectId: project.id,
+				deviceId: ocrSupervisorDevice.id,
+				enabled: true,
+				rateLimitEnabled: true,
+				rateLimitTimeWindow: 86_400_000,
+				rateLimitMax: 10,
+				requestCount: 0,
+				createdAt: now,
+				updatedAt: now,
+				permissions: JSON.stringify({ uploads: ["presign", "ack"] }),
+				metadata: JSON.stringify({
+					source: "seed.ts",
+					workflow: "ocr-supervisor",
+				}),
+			})
+			.returning({
+				id: apikeys.id,
+			});
+		if (!ocrSupervisorApiKey) {
+			throw new Error("Failed to create OCR supervisor API key");
+		}
+
+		const insertedSupervisorOCRDocuments = await tx
+			.insert(documents)
+			.values(
+				uploadedSupervisorOCRDocuments.map((seedDocument) => ({
+					bucket,
+					objectKey: seedDocument.objectKey,
+					contentType: seedDocument.contentType,
+					eTag: seedDocument.eTag,
+					sizeBytes: seedDocument.sizeBytes,
+					lastModifiedAt: seedDocument.lastModifiedAt,
+					visibility: "org",
+					organizationId: organization.id,
+					projectId: project.id,
+					deviceId: ocrSupervisorDevice.id,
+				})),
+			)
+			.returning({
+				id: documents.id,
+				objectKey: documents.objectKey,
+			});
+		if (
+			insertedSupervisorOCRDocuments.length !==
+			uploadedSupervisorOCRDocuments.length
+		) {
+			throw new Error("Failed to insert OCR supervisor documents");
+		}
+
+		const supervisorOCRDocumentIdByObjectKey = new Map(
+			insertedSupervisorOCRDocuments.map((document) => [
+				document.objectKey,
+				document.id,
+			]),
+		);
+
+		const supervisorOCRDocumentsWithIds = uploadedSupervisorOCRDocuments.map(
+			(seedDocument) => {
+				const documentId = supervisorOCRDocumentIdByObjectKey.get(
+					seedDocument.objectKey,
+				);
+				if (!documentId) {
+					throw new Error(
+						`Failed to resolve OCR supervisor document id for ${seedDocument.objectKey}`,
+					);
+				}
+
+				const seedInput = seedSupervisorOCRDocumentInputs.find(
+					(input) => input.slug === seedDocument.slug,
+				);
+				if (!seedInput) {
+					throw new Error(
+						`Missing OCR supervisor seed input for ${seedDocument.slug}`,
+					);
+				}
+
+				return {
+					...seedDocument,
+					documentId,
+					ocrText: seedInput.ocrText,
+					savedSummary: seedInput.savedSummary,
+					avgConfidence: seedInput.avgConfidence ?? null,
+				};
+			},
+		);
+
+		const insertedSupervisorDescriptions = await tx
+			.insert(documentDescriptions)
+			.values(
+				supervisorOCRDocumentsWithIds.map((seedDocument) => ({
+					documentId: seedDocument.documentId,
+					modelId: gpt41MiniModel.id,
+					text: seedDocument.savedSummary,
+				})),
+			)
+			.returning({
+				id: documentDescriptions.id,
+				documentId: documentDescriptions.documentId,
+			});
+		if (
+			insertedSupervisorDescriptions.length !==
+			supervisorOCRDocumentsWithIds.length
+		) {
+			throw new Error("Failed to insert OCR supervisor descriptions");
+		}
+
+		const insertedSupervisorOCRResults = await tx
+			.insert(documentOCRResults)
+			.values(
+				supervisorOCRDocumentsWithIds.map((seedDocument) => ({
+					documentId: seedDocument.documentId,
+					modelId: dotsOCRModel.id,
+					input: {
+						return_confidence: true,
+						confidence_threshold: 0.7,
+					},
+					text: seedDocument.ocrText,
+					avgConfidence: seedDocument.avgConfidence,
+					result: {
+						text: seedDocument.ocrText,
+						avg_confidence: seedDocument.avgConfidence,
+						low_confidence_count: 0,
+						word_confidences: [],
+					},
+				})),
+			)
+			.returning({
+				id: documentOCRResults.id,
+				documentId: documentOCRResults.documentId,
+			});
+
+		const supervisorOCRResultIdByDocumentId = new Map(
+			insertedSupervisorOCRResults.map((row) => [row.documentId, row.id]),
+		);
+		const supervisorDescriptionIdByDocumentId = new Map(
+			insertedSupervisorDescriptions.map((row) => [row.documentId, row.id]),
+		);
+
+		const ocrRunBaseTime = new Date(runBaseTime.getTime() + 1000 * 120);
+
+		const urgentConditionDoc = conditionOCRDocumentsWithIds.find(
+			(document) => document.slug === "ocr-urgent-notice",
+		);
+		const generalConditionDoc = conditionOCRDocumentsWithIds.find(
+			(document) => document.slug === "ocr-general-notice",
+		);
+		const invoiceOCRDoc = supervisorOCRDocumentsWithIds.find(
+			(document) => document.slug === "ocr-invoice-review",
+		);
+		const operationsOCRDoc = supervisorOCRDocumentsWithIds.find(
+			(document) => document.slug === "ocr-operations-review",
+		);
+		if (
+			!urgentConditionDoc ||
+			!generalConditionDoc ||
+			!invoiceOCRDoc ||
+			!operationsOCRDoc
+		) {
+			throw new Error("Failed to resolve OCR seed documents");
+		}
+
+		const [urgentConditionRun] = await tx
+			.insert(agentGraphRuns)
+			.values({
+				agentGraphId: ocrConditionGraph.id,
+				status: "completed",
+				initialState: {
+					temp_url: `https://s3.example.com/${urgentConditionDoc.objectKey}`,
+					document_id: urgentConditionDoc.documentId,
+				},
+				finalState: {
+					document_id: urgentConditionDoc.documentId,
+					ocr_result_id:
+						conditionOCRResultIdByDocumentId.get(
+							urgentConditionDoc.documentId,
+						) ?? null,
+					ocr_text: urgentConditionDoc.ocrText,
+					contains_urgent: true,
+					notice_summary: urgentConditionDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime()),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 9),
+			})
+			.returning({ id: agentGraphRuns.id });
+		if (!urgentConditionRun) {
+			throw new Error("Failed to create urgent OCR condition run");
+		}
+
+		await tx.insert(agentGraphRunSteps).values([
+			{
+				runId: urgentConditionRun.id,
+				nodeKey: "extract_ocr",
+				stepOrder: 1,
+				stateDelta: {
+					ocr_result_id:
+						conditionOCRResultIdByDocumentId.get(
+							urgentConditionDoc.documentId,
+						) ?? null,
+					ocr_text: urgentConditionDoc.ocrText,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime()),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 2),
+			},
+			{
+				runId: urgentConditionRun.id,
+				nodeKey: "route_keyword",
+				stepOrder: 2,
+				stateDelta: {
+					contains_urgent: true,
+					branch: "urgent_notice_specialist",
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 2),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 3),
+			},
+			{
+				runId: urgentConditionRun.id,
+				nodeKey: "urgent_notice_specialist",
+				stepOrder: 3,
+				stateDelta: {
+					notice_summary: urgentConditionDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 3),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 6),
+			},
+			{
+				runId: urgentConditionRun.id,
+				nodeKey: "save_notice_summary",
+				stepOrder: 4,
+				stateDelta: {
+					document_description_id:
+						conditionDescriptionIdByDocumentId.get(
+							urgentConditionDoc.documentId,
+						) ?? null,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 6),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 9),
+			},
+		]);
+
+		const [generalConditionRun] = await tx
+			.insert(agentGraphRuns)
+			.values({
+				agentGraphId: ocrConditionGraph.id,
+				status: "completed",
+				initialState: {
+					temp_url: `https://s3.example.com/${generalConditionDoc.objectKey}`,
+					document_id: generalConditionDoc.documentId,
+				},
+				finalState: {
+					document_id: generalConditionDoc.documentId,
+					ocr_result_id:
+						conditionOCRResultIdByDocumentId.get(
+							generalConditionDoc.documentId,
+						) ?? null,
+					ocr_text: generalConditionDoc.ocrText,
+					contains_urgent: false,
+					notice_summary: generalConditionDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 15),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 24),
+			})
+			.returning({ id: agentGraphRuns.id });
+		if (!generalConditionRun) {
+			throw new Error("Failed to create general OCR condition run");
+		}
+
+		await tx.insert(agentGraphRunSteps).values([
+			{
+				runId: generalConditionRun.id,
+				nodeKey: "extract_ocr",
+				stepOrder: 1,
+				stateDelta: {
+					ocr_result_id:
+						conditionOCRResultIdByDocumentId.get(
+							generalConditionDoc.documentId,
+						) ?? null,
+					ocr_text: generalConditionDoc.ocrText,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 15),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 17),
+			},
+			{
+				runId: generalConditionRun.id,
+				nodeKey: "route_keyword",
+				stepOrder: 2,
+				stateDelta: {
+					contains_urgent: false,
+					branch: "general_notice_specialist",
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 17),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 18),
+			},
+			{
+				runId: generalConditionRun.id,
+				nodeKey: "general_notice_specialist",
+				stepOrder: 3,
+				stateDelta: {
+					notice_summary: generalConditionDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 18),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 21),
+			},
+			{
+				runId: generalConditionRun.id,
+				nodeKey: "save_notice_summary",
+				stepOrder: 4,
+				stateDelta: {
+					document_description_id:
+						conditionDescriptionIdByDocumentId.get(
+							generalConditionDoc.documentId,
+						) ?? null,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 21),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 24),
+			},
+		]);
+
+		const [invoiceSupervisorRun] = await tx
+			.insert(agentGraphRuns)
+			.values({
+				agentGraphId: ocrSupervisorGraph.id,
+				status: "completed",
+				initialState: {
+					temp_url: `https://s3.example.com/${invoiceOCRDoc.objectKey}`,
+					document_id: invoiceOCRDoc.documentId,
+				},
+				finalState: {
+					document_id: invoiceOCRDoc.documentId,
+					ocr_result_id:
+						supervisorOCRResultIdByDocumentId.get(invoiceOCRDoc.documentId) ??
+						null,
+					ocr_text: invoiceOCRDoc.ocrText,
+					ocr_avg_confidence: invoiceOCRDoc.avgConfidence,
+					ocr_review_summary: invoiceOCRDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 30),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 44),
+			})
+			.returning({ id: agentGraphRuns.id });
+		if (!invoiceSupervisorRun) {
+			throw new Error("Failed to create invoice OCR supervisor run");
+		}
+
+		await tx.insert(agentGraphRunSteps).values([
+			{
+				runId: invoiceSupervisorRun.id,
+				nodeKey: "extract_ocr_confident",
+				stepOrder: 1,
+				stateDelta: {
+					ocr_result_id:
+						supervisorOCRResultIdByDocumentId.get(invoiceOCRDoc.documentId) ??
+						null,
+					ocr_text: invoiceOCRDoc.ocrText,
+					ocr_avg_confidence: invoiceOCRDoc.avgConfidence,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 30),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 33),
+			},
+			{
+				runId: invoiceSupervisorRun.id,
+				nodeKey: "ocr_review_supervisor",
+				stepOrder: 2,
+				stateDelta: {
+					routing_decision: "billing_ocr_specialist",
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 33),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 35),
+			},
+			{
+				runId: invoiceSupervisorRun.id,
+				nodeKey: "billing_ocr_specialist",
+				stepOrder: 3,
+				stateDelta: {
+					ocr_review_summary: invoiceOCRDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 35),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 39),
+			},
+			{
+				runId: invoiceSupervisorRun.id,
+				nodeKey: "ocr_review_supervisor",
+				stepOrder: 4,
+				stateDelta: {
+					decision: "FINISH",
+					finish_target: "save_review_summary",
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 39),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 41),
+			},
+			{
+				runId: invoiceSupervisorRun.id,
+				nodeKey: "save_review_summary",
+				stepOrder: 5,
+				stateDelta: {
+					document_description_id:
+						supervisorDescriptionIdByDocumentId.get(invoiceOCRDoc.documentId) ??
+						null,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 41),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 44),
+			},
+		]);
+
+		const [operationsSupervisorRun] = await tx
+			.insert(agentGraphRuns)
+			.values({
+				agentGraphId: ocrSupervisorGraph.id,
+				status: "completed",
+				initialState: {
+					temp_url: `https://s3.example.com/${operationsOCRDoc.objectKey}`,
+					document_id: operationsOCRDoc.documentId,
+				},
+				finalState: {
+					document_id: operationsOCRDoc.documentId,
+					ocr_result_id:
+						supervisorOCRResultIdByDocumentId.get(
+							operationsOCRDoc.documentId,
+						) ?? null,
+					ocr_text: operationsOCRDoc.ocrText,
+					ocr_avg_confidence: operationsOCRDoc.avgConfidence,
+					ocr_review_summary: operationsOCRDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 50),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 64),
+			})
+			.returning({ id: agentGraphRuns.id });
+		if (!operationsSupervisorRun) {
+			throw new Error("Failed to create operations OCR supervisor run");
+		}
+
+		await tx.insert(agentGraphRunSteps).values([
+			{
+				runId: operationsSupervisorRun.id,
+				nodeKey: "extract_ocr_confident",
+				stepOrder: 1,
+				stateDelta: {
+					ocr_result_id:
+						supervisorOCRResultIdByDocumentId.get(
+							operationsOCRDoc.documentId,
+						) ?? null,
+					ocr_text: operationsOCRDoc.ocrText,
+					ocr_avg_confidence: operationsOCRDoc.avgConfidence,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 50),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 53),
+			},
+			{
+				runId: operationsSupervisorRun.id,
+				nodeKey: "ocr_review_supervisor",
+				stepOrder: 2,
+				stateDelta: {
+					routing_decision: "operations_ocr_specialist",
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 53),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 55),
+			},
+			{
+				runId: operationsSupervisorRun.id,
+				nodeKey: "operations_ocr_specialist",
+				stepOrder: 3,
+				stateDelta: {
+					ocr_review_summary: operationsOCRDoc.savedSummary,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 55),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 59),
+			},
+			{
+				runId: operationsSupervisorRun.id,
+				nodeKey: "ocr_review_supervisor",
+				stepOrder: 4,
+				stateDelta: {
+					decision: "FINISH",
+					finish_target: "save_review_summary",
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 59),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 61),
+			},
+			{
+				runId: operationsSupervisorRun.id,
+				nodeKey: "save_review_summary",
+				stepOrder: 5,
+				stateDelta: {
+					document_description_id:
+						supervisorDescriptionIdByDocumentId.get(
+							operationsOCRDoc.documentId,
+						) ?? null,
+				},
+				startedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 61),
+				finishedAt: new Date(ocrRunBaseTime.getTime() + 1000 * 64),
+			},
+		]);
+
 		return {
 			user,
 			dashboardSession,
@@ -1841,10 +3055,18 @@ const seed = async () => {
 			semanticSegmentationDevice,
 			semanticSegmentationApiKey,
 			semanticSegmentationGraph,
+			ocrConditionDevice,
+			ocrConditionApiKey,
+			ocrConditionGraph,
+			ocrSupervisorDevice,
+			ocrSupervisorApiKey,
+			ocrSupervisorGraph,
 			clipModel,
 			gpt41MiniModel,
 			semanticSegmentationModel,
 			langSegmentationModel,
+			deepseekOCRModel,
+			dotsOCRModel,
 			seededDocuments: seedDocumentsWithIds,
 			seededDescriptionCount: insertedDescriptions.length,
 			seededQRDocuments: qrSeedDocumentsWithIds,
@@ -1852,6 +3074,8 @@ const seed = async () => {
 			seededSegmentationDocuments: segmentationSeedDocumentsWithIds,
 			seededSemanticSegmentationDocuments:
 				semanticSegmentationSeedDocumentsWithIds,
+			seededConditionOCRDocuments: conditionOCRDocumentsWithIds,
+			seededSupervisorOCRDocuments: supervisorOCRDocumentsWithIds,
 			agentRuns: {
 				goodRun: {
 					id: goodRun.id,
@@ -1863,6 +3087,26 @@ const seed = async () => {
 					id: washedOutRun.id,
 					document: "washed-out-shoreline",
 					verdict: "BAD",
+				},
+				urgentConditionRun: {
+					id: urgentConditionRun.id,
+					document: "ocr-urgent-notice",
+					verdict: "URGENT",
+				},
+				generalConditionRun: {
+					id: generalConditionRun.id,
+					document: "ocr-general-notice",
+					verdict: "ROUTINE",
+				},
+				invoiceSupervisorRun: {
+					id: invoiceSupervisorRun.id,
+					document: "ocr-invoice-review",
+					verdict: "BILLING",
+				},
+				operationsSupervisorRun: {
+					id: operationsSupervisorRun.id,
+					document: "ocr-operations-review",
+					verdict: "OPERATIONS",
 				},
 			},
 		};
@@ -1906,6 +3150,16 @@ const seed = async () => {
 	console.log(
 		`API Key (plain, workflow 4): ${plainSemanticSegmentationApiKey}`,
 	);
+	console.log(
+		`Device (workflow 5, OCR condition): ${result.ocrConditionDevice.slug} (${result.ocrConditionDevice.id})`,
+	);
+	console.log(`API Key ID (workflow 5): ${result.ocrConditionApiKey.id}`);
+	console.log(`API Key (plain, workflow 5): ${plainOCRConditionApiKey}`);
+	console.log(
+		`Device (workflow 6, OCR supervisor): ${result.ocrSupervisorDevice.slug} (${result.ocrSupervisorDevice.id})`,
+	);
+	console.log(`API Key ID (workflow 6): ${result.ocrSupervisorApiKey.id}`);
+	console.log(`API Key (plain, workflow 6): ${plainOCRSupervisorApiKey}`);
 	console.log(`\nAgent Graph (workflow 1): ${result.pipelineGraph.id}`);
 	console.log(`Agent Graph (workflow 2): ${result.qualityReviewGraph.id}`);
 	console.log(
@@ -1913,6 +3167,12 @@ const seed = async () => {
 	);
 	console.log(
 		`Agent Graph (workflow 4, semantic segmentation): ${result.semanticSegmentationGraph.id}`,
+	);
+	console.log(
+		`Agent Graph (workflow 5, OCR condition): ${result.ocrConditionGraph.id}`,
+	);
+	console.log(
+		`Agent Graph (workflow 6, OCR supervisor): ${result.ocrSupervisorGraph.id}`,
 	);
 	console.log(`CLIP Model: ${result.clipModel.id}`);
 	console.log(`GPT-4.1 Mini Model: ${result.gpt41MiniModel.id}`);
@@ -1922,6 +3182,8 @@ const seed = async () => {
 	console.log(
 		`Language segmentation model: ${result.langSegmentationModel.id}`,
 	);
+	console.log(`DeepSeek OCR model: ${result.deepseekOCRModel.id}`);
+	console.log(`DOTS OCR model: ${result.dotsOCRModel.id}`);
 	console.log(`Seeded documents (pipeline): ${result.seededDocuments.length}`);
 	console.log(
 		`Seeded descriptions (pipeline): ${result.seededDescriptionCount}`,
@@ -1958,7 +3220,23 @@ const seed = async () => {
 			`  Semantic segmentation doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
 		);
 	}
-	console.log("\nAgent Graph Runs (quality review):");
+	console.log(
+		`Seeded documents (OCR condition): ${result.seededConditionOCRDocuments.length}`,
+	);
+	for (const seededDocument of result.seededConditionOCRDocuments) {
+		console.log(
+			`  OCR condition doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
+		);
+	}
+	console.log(
+		`Seeded documents (OCR supervisor): ${result.seededSupervisorOCRDocuments.length}`,
+	);
+	for (const seededDocument of result.seededSupervisorOCRDocuments) {
+		console.log(
+			`  OCR supervisor doc: ${seededDocument.objectKey} (${seededDocument.documentId})`,
+		);
+	}
+	console.log("\nSeeded Agent Graph Runs:");
 	for (const [label, run] of Object.entries(result.agentRuns)) {
 		console.log(`  ${label}: ${run.document} → ${run.verdict} (${run.id})`);
 	}

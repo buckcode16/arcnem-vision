@@ -3,7 +3,7 @@ title: Arcnem Vision
 description: 機械に「見る」を教え、エージェントに「どうするか」を任せる。
 template: splash
 hero:
-  tagline: 写真をアップロードすると、LangGraphでオーケストレーションされ、MCPで接続され、データベースから設定されたAIエージェント群が、エンベディングの生成、説明文の作成、意味による検索を可能にします。必要なAPIキーはたった2つ — それ以外はすべてローカルで動作。
+  tagline: 写真をアップロードすると、LangGraphでつながったAIエージェント群が、OCR抽出、説明文生成、ベクトル化、そして条件分岐や専門ワーカーへの振り分けまで引き受けます。設定はデータベースから差し替え可能。必要なAPIキーは2つだけで、残りはローカルで動きます。
   image:
     file: ../../../assets/logo.svg
   actions:
@@ -22,7 +22,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="データベース駆動のエージェントグラフ" icon="setting">
-    AIワークフローをコードではなく行として定義。再デプロイなしで組織ごとに処理パイプラインを切り替え可能。
+    AIワークフローをコードではなく行として定義。worker、tool、supervisor、condition を組み合わせた処理パイプラインを再デプロイなしで差し替え可能。
   </Card>
   <Card title="GenUIチャットインターフェース" icon="puzzle">
     AIはテキストで返答するだけではない。カード、ギャラリー、インタラクティブコンポーネントなど、実際のFlutterウィジェットをJSONからランタイムで生成。
@@ -34,13 +34,13 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     画像とその説明文を同一の768次元空間に埋め込み。画像で検索、テキストで検索、雰囲気で検索。
   </Card>
   <Card title="ビジュアルワークフロービルダー" icon="pencil">
-    Reactダッシュボードでプロジェクト作成、デバイス登録、APIキー発行、エージェントグラフのドラッグ＆ドロップを一か所で実行。
+    Reactダッシュボードでプロジェクト作成、デバイス登録、APIキー発行、分岐を含むワークフロー編集まで一か所で実行。
   </Card>
   <Card title="リアルタイム運用ビュー" icon="bars">
-    アップロード、説明文生成、セグメンテーション、実行ステップの進行に合わせてDocumentsとRunsが更新。
+    アップロード、OCR結果保存、説明文生成、セグメンテーション、実行ステップの進行に合わせてDocumentsとRunsが更新。
   </Card>
   <Card title="MCPツールがファーストクラス" icon="open-book">
-    説明文生成、CLIPエンベディング、類似検索、セグメンテーションモデルをMCP経由で公開。エージェントも人も利用可能。
+    説明文生成、OCR、CLIPエンベディング、類似検索、セグメンテーションモデルをMCP経由で公開。エージェントも人も利用可能。
   </Card>
 </CardGrid>
 
@@ -52,5 +52,5 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 | **API** | Bun, Hono, better-auth, Inngest, Pino | RESTルート、署名付きアップロード、ジョブスケジューリング、構造化ログ |
 | **ダッシュボード** | React 19, TanStack Router, Tailwind, shadcn/ui | ワークフロービルダー、プロジェクト/デバイス/APIキー管理、ライブ運用UI |
 | **エージェント** | Go, Gin, LangGraph, LangChain, inngestgo | グラフベースのエージェントオーケストレーション、ReActワーカー、ステップレベルトレーシング |
-| **MCP** | Go, MCP go-sdk, replicate-go, GORM | CLIPエンベディング、説明文生成、セグメンテーション、類似検索 |
+| **MCP** | Go, MCP go-sdk, replicate-go, GORM | CLIPエンベディング、説明文生成、OCR、セグメンテーション、類似検索 |
 | **ストレージ** | Postgres 18 + pgvector, S3互換, Redis | ベクターインデックス、オブジェクトストレージ、セッションキャッシュ |

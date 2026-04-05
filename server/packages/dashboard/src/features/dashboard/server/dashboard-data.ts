@@ -371,6 +371,7 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
 			const nodeTypeCounts = {
 				worker: 0,
 				supervisor: 0,
+				condition: 0,
 				tool: 0,
 				other: 0,
 			};
@@ -381,6 +382,9 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
 						break;
 					case "supervisor":
 						nodeTypeCounts.supervisor += 1;
+						break;
+					case "condition":
+						nodeTypeCounts.condition += 1;
 						break;
 					case "tool":
 						nodeTypeCounts.tool += 1;

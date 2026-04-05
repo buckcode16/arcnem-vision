@@ -47,6 +47,22 @@ type CreateDocumentSegmentationOutput struct {
 	Result              any    `json:"result"`
 }
 
+type CreateDocumentOCRInput struct {
+	DocumentID    string         `json:"document_id"`
+	TempURL       string         `json:"temp_url"`
+	ModelProvider string         `json:"model_provider"`
+	ModelName     string         `json:"model_name"`
+	ModelVersion  string         `json:"model_version"`
+	InputParams   map[string]any `json:"input_params,omitempty"`
+}
+
+type CreateDocumentOCROutput struct {
+	OCRResultID   string `json:"ocr_result_id"`
+	Text          string `json:"text"`
+	AvgConfidence *int   `json:"avg_confidence,omitempty"`
+	Result        any    `json:"result"`
+}
+
 type FindSimilarDocumentsInput struct {
 	DocumentID string `json:"document_id"`
 }

@@ -1,3 +1,11 @@
+export type JSONValue =
+	| null
+	| string
+	| number
+	| boolean
+	| JSONValue[]
+	| { [key: string]: JSONValue };
+
 export type DocumentItem = {
 	id: string;
 	objectKey: string;
@@ -26,6 +34,19 @@ export type SegmentedResultItem = {
 
 export type DocumentSegmentationsResponse = {
 	segmentedResults: SegmentedResultItem[];
+};
+
+export type OCRResultItem = {
+	ocrResultId: string;
+	ocrCreatedAt: string;
+	modelLabel: string;
+	text: string;
+	avgConfidence: number | null;
+	result: JSONValue;
+};
+
+export type DocumentOCRResultsResponse = {
+	ocrResults: OCRResultItem[];
 };
 
 export type DocumentUploadTarget = {

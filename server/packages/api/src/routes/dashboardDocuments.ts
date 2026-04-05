@@ -22,6 +22,8 @@ const S3_BUCKET = getAPIEnvVar("S3_BUCKET");
 const {
 	documents,
 	documentDescriptions,
+	documentOCRResults,
+	models,
 	organizations,
 	presignedUploads,
 	projects,
@@ -50,6 +52,15 @@ type DocumentSegmentationRow = DocumentRow & {
 	segmentationCreatedAt: Date | string;
 	modelLabel: string;
 	prompt: string | null;
+};
+
+type DocumentOCRRow = {
+	ocrResultId: string;
+	ocrCreatedAt: Date | string;
+	modelLabel: string;
+	text: string;
+	avgConfidence: number | string | null;
+	result: unknown;
 };
 
 const topLevelDocumentCondition = sql`NOT EXISTS (
@@ -119,6 +130,20 @@ function toSegmentedResultItem(row: DocumentSegmentationRow) {
 		modelLabel: row.modelLabel,
 		prompt: row.prompt,
 		document: toDocumentItem(row),
+	};
+}
+
+function toOCRResultItem(row: DocumentOCRRow) {
+	return {
+		ocrResultId: row.ocrResultId,
+		ocrCreatedAt:
+			row.ocrCreatedAt instanceof Date
+				? row.ocrCreatedAt.toISOString()
+				: row.ocrCreatedAt,
+		modelLabel: row.modelLabel,
+		text: row.text,
+		avgConfidence: row.avgConfidence == null ? null : Number(row.avgConfidence),
+		result: row.result,
 	};
 }
 
@@ -584,6 +609,58 @@ dashboardDocumentsRouter.post(
 			documentId: targetDocument.id,
 			workflowId: workflow.id,
 			workflowName: workflow.name,
+		});
+	},
+);
+
+dashboardDocumentsRouter.get(
+	"/dashboard/documents/:id/ocr",
+	requireSession,
+	async (c) => {
+		const documentId = c.req.param("id")?.trim() ?? "";
+		if (!documentId) {
+			return c.json({ message: "documentId is required" }, 400);
+		}
+
+		const dbClient = c.get("dbClient");
+		const [sourceDocument] = await dbClient
+			.select({
+				id: documents.id,
+				organizationId: documents.organizationId,
+			})
+			.from(documents)
+			.where(eq(documents.id, documentId))
+			.limit(1);
+
+		if (!sourceDocument) {
+			return c.json({ message: "Document not found" }, 404);
+		}
+
+		if (
+			!(await hasDashboardOrganizationAccess(c, sourceDocument.organizationId))
+		) {
+			return c.json(
+				{ message: "documentId is not available for this session" },
+				403,
+			);
+		}
+
+		const ocrRows = await dbClient
+			.select({
+				ocrResultId: documentOCRResults.id,
+				ocrCreatedAt: documentOCRResults.createdAt,
+				modelLabel: sql<string>`CONCAT(${models.provider}, '/', ${models.name})`,
+				text: documentOCRResults.text,
+				avgConfidence: documentOCRResults.avgConfidence,
+				result: documentOCRResults.result,
+			})
+			.from(documentOCRResults)
+			.innerJoin(models, eq(documentOCRResults.modelId, models.id))
+			.where(eq(documentOCRResults.documentId, documentId))
+			.orderBy(desc(documentOCRResults.createdAt), desc(documentOCRResults.id));
+
+		return c.json({
+			ocrResults: ocrRows.map((row) => toOCRResultItem(row as DocumentOCRRow)),
 		});
 	},
 );

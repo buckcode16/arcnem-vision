@@ -22,6 +22,7 @@ const (
 const (
 	DashboardReasonDocumentCreated     = "document-created"
 	DashboardReasonDescriptionUpserted = "description-upserted"
+	DashboardReasonOCRCreated          = "ocr-created"
 	DashboardReasonSegmentationCreated = "segmentation-created"
 	DashboardReasonRunCreated          = "run-created"
 	DashboardReasonRunStepChanged      = "run-step-changed"
@@ -102,6 +103,7 @@ func dashboardScopeForReason(reason string) string {
 	switch reason {
 	case DashboardReasonDocumentCreated,
 		DashboardReasonDescriptionUpserted,
+		DashboardReasonOCRCreated,
 		DashboardReasonSegmentationCreated:
 		return DashboardScopeDocuments
 	case DashboardReasonRunCreated,

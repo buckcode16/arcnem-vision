@@ -251,6 +251,36 @@ export const documentSegmentations = pgTable(
 	],
 );
 
+export const documentOCRResults = pgTable(
+	"document_ocr_results",
+	{
+		id: uuid("id").primaryKey().default(sql`uuidv7()`),
+		documentId: uuid("document_id")
+			.notNull()
+			.references(() => documents.id, { onDelete: "cascade" }),
+		modelId: uuid("model_id")
+			.notNull()
+			.references(() => models.id, { onDelete: "restrict" }),
+		input: jsonb("input").notNull().default("{}"),
+		text: text("text").notNull(),
+		avgConfidence: integer("avg_confidence"),
+		result: jsonb("result").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("document_ocr_results_document_id_idx").on(table.documentId),
+		index("document_ocr_results_model_id_idx").on(table.modelId),
+		index("document_ocr_results_document_created_at_idx").on(
+			table.documentId,
+			table.createdAt,
+		),
+	],
+);
+
 export const documentDescriptionEmbeddings = pgTable(
 	"document_description_embeddings",
 	{

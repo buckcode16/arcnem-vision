@@ -29,6 +29,8 @@ func BuildGraphNode(
 		return BuildToolNode(node, mcpClient)
 	case "supervisor":
 		return nil, fmt.Errorf("supervisor node %q must be built via BuildSupervisorRoutingNode, not BuildGraphNode", node.Node.NodeKey)
+	case "condition":
+		return nil, fmt.Errorf("condition node %q must be built via BuildConditionNode, not BuildGraphNode", node.Node.NodeKey)
 	default:
 		return nil, fmt.Errorf("unknown node type %q", node.Node.NodeType)
 	}

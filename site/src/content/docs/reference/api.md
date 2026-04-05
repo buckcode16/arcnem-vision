@@ -22,7 +22,7 @@ curl -X POST http://localhost:3000/api/uploads/ack \
   -d '{"objectKey":"uploads/.../photo.png"}'
 ```
 
-After step 3, Inngest fires `document/process.upload`. The agent graph takes it from there — CLIP embedding, description generation, vector indexing. Done.
+After step 3, Inngest fires `document/process.upload`. The assigned workflow takes it from there — OCR, description generation, embedding, routing, segmentation, whatever that graph defines.
 
 ## Auth Model
 
@@ -55,6 +55,15 @@ POST /api/dashboard/documents/uploads/ack
 - `presign` issues a direct S3 upload target for a selected project.
 - `ack` verifies the upload, creates the document, and publishes a dashboard document event.
 
+Related OCR outputs for a source document use:
+
+```http
+GET /api/dashboard/documents/:id/ocr
+```
+
+- Response shape:
+  - `ocrResults`: extracted text records with `ocrResultId`, `ocrCreatedAt`, `modelLabel`, `text`, `avgConfidence`, and `result`
+
 Related segmented outputs for a source document use:
 
 ```http
@@ -82,7 +91,7 @@ GET /api/realtime/dashboard
 ```
 
 - Uses Server-Sent Events.
-- Document events: `document-created`, `description-upserted`, `segmentation-created`
+- Document events: `document-created`, `ocr-created`, `description-upserted`, `segmentation-created`
 - Run events: `run-created`, `run-step-changed`, `run-finished`
 
 ## Health Checks

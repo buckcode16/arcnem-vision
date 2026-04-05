@@ -83,4 +83,59 @@ describe("normalizeGraphData", () => {
 			}),
 		).toThrow(/path to END/i);
 	});
+
+	test("accepts a valid condition graph", () => {
+		const result = normalizeGraphData({
+			entryNode: "extract_ocr",
+			nodes: [
+				{
+					nodeKey: "extract_ocr",
+					nodeType: "tool",
+					x: 0,
+					y: 0,
+					toolIds: ["00000000-0000-4000-8000-000000000002"],
+					config: {},
+				},
+				{
+					nodeKey: "route_keyword",
+					nodeType: "condition",
+					x: 150,
+					y: 0,
+					config: {
+						source_key: "ocr_text",
+						operator: "contains",
+						value: "URGENT",
+						case_sensitive: false,
+						true_target: "urgent_worker",
+						false_target: "general_worker",
+					},
+				},
+				{
+					nodeKey: "urgent_worker",
+					nodeType: "worker",
+					x: 300,
+					y: 0,
+					modelId: "00000000-0000-4000-8000-000000000001",
+					config: {},
+				},
+				{
+					nodeKey: "general_worker",
+					nodeType: "worker",
+					x: 300,
+					y: 100,
+					modelId: "00000000-0000-4000-8000-000000000001",
+					config: {},
+				},
+			],
+			edges: [
+				{ fromNode: "extract_ocr", toNode: "route_keyword" },
+				{ fromNode: "route_keyword", toNode: "urgent_worker" },
+				{ fromNode: "route_keyword", toNode: "general_worker" },
+				{ fromNode: "urgent_worker", toNode: "END" },
+				{ fromNode: "general_worker", toNode: "END" },
+			],
+		});
+
+		expect(result.nodes[1]?.nodeType).toBe("condition");
+	});
 });

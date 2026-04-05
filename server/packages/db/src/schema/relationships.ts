@@ -27,6 +27,7 @@ import {
 	documentDescriptionEmbeddings,
 	documentDescriptions,
 	documentEmbeddings,
+	documentOCRResults,
 	documentSegmentations,
 	documents,
 	models,
@@ -154,6 +155,7 @@ export const documentsRelations = relations(documents, ({ one, many }) => ({
 	}),
 	documentEmbeddings: many(documentEmbeddings),
 	documentDescriptions: many(documentDescriptions),
+	documentOCRResults: many(documentOCRResults),
 	sourceDocumentSegmentations: many(documentSegmentations, {
 		relationName: "source_document_segmentations",
 	}),
@@ -183,6 +185,7 @@ export const presignedUploadsRelations = relations(
 export const modelsRelations = relations(models, ({ many }) => ({
 	documentEmbeddings: many(documentEmbeddings),
 	documentDescriptions: many(documentDescriptions),
+	documentOCRResults: many(documentOCRResults),
 	documentSegmentations: many(documentSegmentations),
 	documentDescriptionEmbeddings: many(documentDescriptionEmbeddings),
 	agentGraphTemplateNodes: many(agentGraphTemplateNodes),
@@ -233,6 +236,20 @@ export const documentSegmentationsRelations = relations(
 		}),
 		models: one(models, {
 			fields: [documentSegmentations.modelId],
+			references: [models.id],
+		}),
+	}),
+);
+
+export const documentOCRResultsRelations = relations(
+	documentOCRResults,
+	({ one }) => ({
+		documents: one(documents, {
+			fields: [documentOCRResults.documentId],
+			references: [documents.id],
+		}),
+		models: one(models, {
+			fields: [documentOCRResults.modelId],
 			references: [models.id],
 		}),
 	}),

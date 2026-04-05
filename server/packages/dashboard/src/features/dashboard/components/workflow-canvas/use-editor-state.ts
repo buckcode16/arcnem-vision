@@ -48,6 +48,48 @@ function asStringArray(value: unknown) {
 		.filter((item) => item.length > 0);
 }
 
+function getConditionTargets(node: EditorNode) {
+	if (node.nodeType !== "condition") return [] as string[];
+	const config = asRecord(node.config);
+	return [config.true_target, config.false_target]
+		.filter((target): target is string => typeof target === "string")
+		.map((target) => target.trim())
+		.filter((target) => target.length > 0);
+}
+
+function dedupeEdges(edges: WorkflowDraft["edges"]) {
+	const seen = new Set<string>();
+	return edges.filter((edge) => {
+		const key = `${edge.fromNode}->${edge.toNode}`;
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+}
+
+function syncConditionEdges(
+	nodes: EditorNode[],
+	edges: WorkflowDraft["edges"],
+): WorkflowDraft["edges"] {
+	const conditionNodeKeys = new Set(
+		nodes
+			.filter((node) => node.nodeType === "condition")
+			.map((node) => node.nodeKey),
+	);
+	const manualEdges = edges.filter(
+		(edge) => !conditionNodeKeys.has(edge.fromNode),
+	);
+	const managedEdges = nodes.flatMap((node) =>
+		getConditionTargets(node).map((target) => ({
+			fromNode: node.nodeKey,
+			toNode: target,
+		})),
+	);
+	return dedupeEdges([...manualEdges, ...managedEdges]);
+}
+
 export function useWorkflowCanvasEditorState({
 	isOpen,
 	workflow,
@@ -138,6 +180,23 @@ export function useWorkflowCanvasEditorState({
 				config.members = Array.from(new Set(asStringArray(config.members)));
 			}
 
+			if (normalizedType === "condition") {
+				modelId = null;
+				toolIds = [];
+				config.source_key =
+					typeof config.source_key === "string" ? config.source_key : "";
+				config.operator =
+					typeof config.operator === "string"
+						? config.operator.trim().toLowerCase() || "contains"
+						: "contains";
+				config.value = typeof config.value === "string" ? config.value : "";
+				config.case_sensitive = Boolean(config.case_sensitive);
+				config.true_target =
+					typeof config.true_target === "string" ? config.true_target : "";
+				config.false_target =
+					typeof config.false_target === "string" ? config.false_target : "";
+			}
+
 			if (normalizedType === "tool") {
 				modelId = null;
 				const validToolIds = toolIds.filter((toolId) => toolById.has(toolId));
@@ -173,7 +232,7 @@ export function useWorkflowCanvasEditorState({
 		setDescription(initial.description);
 		setEntryNode(initial.entryNode);
 		setNodes(hydratedNodes);
-		setEdges(initial.edges);
+		setEdges(syncConditionEdges(hydratedNodes, initial.edges));
 		setSelectedNodeId(hydratedNodes[0]?.localId ?? null);
 		setLocalError(null);
 		setViewport({ scale: 1, offsetX: 40, offsetY: 40 });
@@ -341,12 +400,24 @@ export function useWorkflowCanvasEditorState({
 			outputKey: null,
 			modelId: null,
 			toolIds: [],
-			config: {},
+			config:
+				normalizedType === "condition"
+					? {
+							source_key: "",
+							operator: "contains",
+							value: "",
+							case_sensitive: false,
+							true_target: "",
+							false_target: "",
+						}
+					: {},
 			tools: [],
 			toolNames: [],
 			modelLabel: null,
 		});
-		setNodes((previous) => [...previous, nextNode]);
+		const nextNodes = [...nodes, nextNode];
+		setNodes(nextNodes);
+		setEdges((previous) => syncConditionEdges(nextNodes, previous));
 		setSelectedNodeId(nextNode.localId);
 		if (!entryNode) {
 			setEntryNode(nodeKey);
@@ -356,16 +427,47 @@ export function useWorkflowCanvasEditorState({
 	const removeNode = (localId: string) => {
 		const targetNode = nodes.find((node) => node.localId === localId);
 		if (!targetNode) return;
-		setNodes((previous) => previous.filter((node) => node.localId !== localId));
-		setEdges((previous) =>
-			previous.filter(
-				(edge) =>
-					edge.fromNode !== targetNode.nodeKey &&
-					edge.toNode !== targetNode.nodeKey,
-			),
+		const nextNodes = nodes
+			.filter((node) => node.localId !== localId)
+			.map((node) => {
+				if (node.nodeType === "supervisor") {
+					const config = asRecord(node.config);
+					const members = asStringArray(config.members).filter(
+						(member) => member !== targetNode.nodeKey,
+					);
+					return {
+						...node,
+						config: {
+							...config,
+							members,
+						},
+					};
+				}
+				if (node.nodeType === "condition") {
+					const config = asRecord(node.config);
+					const nextConfig = { ...config };
+					if (config.true_target === targetNode.nodeKey) {
+						nextConfig.true_target = "";
+					}
+					if (config.false_target === targetNode.nodeKey) {
+						nextConfig.false_target = "";
+					}
+					return {
+						...node,
+						config: nextConfig,
+					};
+				}
+				return node;
+			});
+		const survivingEdges = edges.filter(
+			(edge) =>
+				edge.fromNode !== targetNode.nodeKey &&
+				edge.toNode !== targetNode.nodeKey,
 		);
+		setNodes(nextNodes);
+		setEdges(syncConditionEdges(nextNodes, survivingEdges));
 		if (entryNode === targetNode.nodeKey) {
-			const fallback = nodes.find((node) => node.localId !== localId);
+			const fallback = nextNodes[0];
 			setEntryNode(fallback?.nodeKey ?? "");
 		}
 		if (selectedNodeId === localId) {
@@ -381,74 +483,122 @@ export function useWorkflowCanvasEditorState({
 			selectedNode.nodeType === "worker" &&
 			nextNodeType != null &&
 			nextNodeType !== "worker";
-		setNodes((previous) =>
-			previous.map((node) => {
-				if (node.localId === selectedNode.localId) {
-					return hydrateNode({
-						...node,
-						...changes,
-						nodeType: nextNodeType ?? node.nodeType,
-					});
+		const nextNodes = nodes.map((node) => {
+			if (node.localId === selectedNode.localId) {
+				return hydrateNode({
+					...node,
+					...changes,
+					nodeType: nextNodeType ?? node.nodeType,
+				});
+			}
+			if (node.nodeType === "supervisor") {
+				const config = asRecord(node.config);
+				const members = asStringArray(config.members);
+				let nextMembers = members;
+
+				if (changes.nodeKey && changes.nodeKey !== previousNodeKey) {
+					nextMembers = nextMembers.map((member) =>
+						member === previousNodeKey ? (changes.nodeKey ?? member) : member,
+					);
 				}
-				if (node.nodeType === "supervisor") {
-					const config = asRecord(node.config);
-					const members = asStringArray(config.members);
-					let nextMembers = members;
 
-					if (changes.nodeKey && changes.nodeKey !== previousNodeKey) {
-						nextMembers = nextMembers.map((member) =>
-							member === previousNodeKey ? (changes.nodeKey ?? member) : member,
-						);
+				if (removingWorkerRole) {
+					const blockedMemberKeys = new Set([previousNodeKey]);
+					if (changes.nodeKey) {
+						blockedMemberKeys.add(changes.nodeKey);
 					}
-
-					if (removingWorkerRole) {
-						const blockedMemberKeys = new Set([previousNodeKey]);
-						if (changes.nodeKey) {
-							blockedMemberKeys.add(changes.nodeKey);
-						}
-						nextMembers = nextMembers.filter(
-							(member) => !blockedMemberKeys.has(member),
-						);
-					}
-
-					const membersChanged =
-						nextMembers.length !== members.length ||
-						nextMembers.some((member, index) => member !== members[index]);
-					if (!membersChanged) {
-						return node;
-					}
-
-					return {
-						...node,
-						config: {
-							...config,
-							members: nextMembers,
-						},
-					};
+					nextMembers = nextMembers.filter(
+						(member) => !blockedMemberKeys.has(member),
+					);
 				}
-				return node;
-			}),
-		);
+
+				const membersChanged =
+					nextMembers.length !== members.length ||
+					nextMembers.some((member, index) => member !== members[index]);
+				if (!membersChanged) {
+					return node;
+				}
+
+				return {
+					...node,
+					config: {
+						...config,
+						members: nextMembers,
+					},
+				};
+			}
+			if (node.nodeType === "condition") {
+				const config = asRecord(node.config);
+				const nextConfig = { ...config };
+				let changed = false;
+				if (changes.nodeKey && config.true_target === previousNodeKey) {
+					nextConfig.true_target = changes.nodeKey;
+					changed = true;
+				}
+				if (changes.nodeKey && config.false_target === previousNodeKey) {
+					nextConfig.false_target = changes.nodeKey;
+					changed = true;
+				}
+				if (!changed) {
+					return node;
+				}
+				return {
+					...node,
+					config: nextConfig,
+				};
+			}
+			return node;
+		});
 		if (changes.nodeKey && changes.nodeKey !== previousNodeKey) {
-			setEdges((previous) =>
-				previous.map((edge) => ({
-					fromNode:
-						edge.fromNode === previousNodeKey
-							? (changes.nodeKey ?? "")
-							: edge.fromNode,
-					toNode:
-						edge.toNode === previousNodeKey
-							? (changes.nodeKey ?? "")
-							: edge.toNode,
-				})),
-			);
+			const renamedEdges = edges.map((edge) => ({
+				fromNode:
+					edge.fromNode === previousNodeKey
+						? (changes.nodeKey ?? "")
+						: edge.fromNode,
+				toNode:
+					edge.toNode === previousNodeKey
+						? (changes.nodeKey ?? "")
+						: edge.toNode,
+			}));
+			setEdges(syncConditionEdges(nextNodes, renamedEdges));
 			if (entryNode === previousNodeKey) {
 				setEntryNode(changes.nodeKey);
 			}
+		} else {
+			setEdges((previous) => syncConditionEdges(nextNodes, previous));
 		}
+		setNodes(nextNodes);
 	};
 
 	const removeEdge = (edgeKey: string) => {
+		const [fromNode, toNode] = edgeKey.split("->");
+		const sourceNode = nodes.find((node) => node.nodeKey === fromNode);
+		if (sourceNode?.nodeType === "condition") {
+			const nextNodes = nodes.map((node) => {
+				if (node.nodeKey !== fromNode) {
+					return node;
+				}
+				const config = asRecord(node.config);
+				const nextConfig = { ...config };
+				if (config.true_target === toNode) {
+					nextConfig.true_target = "";
+				}
+				if (config.false_target === toNode) {
+					nextConfig.false_target = "";
+				}
+				return {
+					...node,
+					config: nextConfig,
+				};
+			});
+			const remainingEdges = edges.filter(
+				(edge) => `${edge.fromNode}->${edge.toNode}` !== edgeKey,
+			);
+			setNodes(nextNodes);
+			setEdges(syncConditionEdges(nextNodes, remainingEdges));
+			return;
+		}
+
 		setEdges((previous) =>
 			previous.filter((edge) => `${edge.fromNode}->${edge.toNode}` !== edgeKey),
 		);
@@ -500,6 +650,10 @@ export function useWorkflowCanvasEditorState({
 	) => {
 		event.stopPropagation();
 		event.preventDefault();
+		const sourceNode = nodes.find((node) => node.nodeKey === fromNodeKey);
+		if (sourceNode?.nodeType === "condition") {
+			return;
+		}
 		const world = toWorldCoords(event.clientX, event.clientY);
 		setEdgeDraft({
 			fromNodeKey,

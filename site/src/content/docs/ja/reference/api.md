@@ -22,7 +22,7 @@ curl -X POST http://localhost:3000/api/uploads/ack \
   -d '{"objectKey":"uploads/.../photo.png"}'
 ```
 
-ステップ3の後、Inngestが`document/process.upload`を発火。エージェントグラフがそこから引き継ぎ — CLIPエンベディング、説明文生成、ベクターインデックス作成。完了。
+ステップ3の後、Inngestが`document/process.upload`を発火します。以降は割り当てられたワークフローに応じて、OCR、説明文生成、埋め込み、分岐、セグメンテーションなどが実行されます。
 
 ## 認証モデル
 
@@ -55,6 +55,15 @@ POST /api/dashboard/documents/uploads/ack
 - `presign`: 選択したプロジェクト向けにS3直接アップロード先を発行
 - `ack`: アップロードを検証し、ドキュメントを作成してダッシュボード向けイベントを発行
 
+元ドキュメントに紐づくOCR結果の取得は次のエンドポイントです。
+
+```http
+GET /api/dashboard/documents/:id/ocr
+```
+
+- レスポンス:
+  - `ocrResults`: `ocrResultId`, `ocrCreatedAt`, `modelLabel`, `text`, `avgConfidence`, `result` を持つOCR結果配列
+
 元画像に紐づくセグメンテーション結果の取得は次のエンドポイントです。
 
 ```http
@@ -82,7 +91,7 @@ GET /api/realtime/dashboard
 ```
 
 - Server-Sent Eventsを使用
-- ドキュメントイベント: `document-created`, `description-upserted`, `segmentation-created`
+- ドキュメントイベント: `document-created`, `ocr-created`, `description-upserted`, `segmentation-created`
 - 実行イベント: `run-created`, `run-step-changed`, `run-finished`
 
 ## ヘルスチェック

@@ -102,6 +102,9 @@ export function WorkflowLibraryPanel({
 									{workflow.nodeTypeCounts.supervisor} supervisors
 								</Badge>
 								<Badge variant="outline">
+									{workflow.nodeTypeCounts.condition} conditions
+								</Badge>
+								<Badge variant="outline">
 									{workflow.nodeTypeCounts.tool} tools
 								</Badge>
 							</div>

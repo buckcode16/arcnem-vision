@@ -57,6 +57,25 @@ func publishDashboardSegmentationEvent(
 	}
 }
 
+func publishDashboardOCREvent(
+	ctx context.Context,
+	document dbmodels.Document,
+) {
+	event := realtime.NewDashboardEvent(
+		realtime.DashboardReasonOCRCreated,
+		document.OrganizationID,
+	)
+	event.DocumentID = document.ID
+
+	if err := realtime.PublishDashboardEvent(ctx, event); err != nil {
+		log.Printf(
+			"dashboard realtime ocr_event_publish_failed document_id=%s err=%v",
+			document.ID,
+			err,
+		)
+	}
+}
+
 func buildDashboardDescriptionEvent(
 	db *gorm.DB,
 	documentID string,

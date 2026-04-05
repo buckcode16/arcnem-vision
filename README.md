@@ -18,7 +18,7 @@
 
 ---
 
-Arcnem Vision is an open-source platform that turns images into understanding. Upload a photo from the Flutter app or directly from the dashboard, and a swarm of AI agents — orchestrated by LangGraph, connected through MCP, and configured entirely from a database — will generate embeddings, write descriptions, run segmentation models, and make everything searchable by meaning, not just metadata.
+Arcnem Vision is an open-source platform that turns images into understanding. Upload a photo from the Flutter app or directly from the dashboard, and a swarm of AI agents — orchestrated by LangGraph, connected through MCP, and configured entirely from a database — will extract OCR text, generate embeddings, write descriptions, branch through deterministic condition nodes or supervisor loops, run segmentation models, and make everything searchable by meaning, not just metadata.
 
 Four languages. Five services. One pipeline from camera shutter to semantic search.
 
@@ -26,14 +26,15 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 
 **What makes it interesting:**
 
-- **Database-driven agent graphs** — Define AI workflows as rows, not code. Swap processing pipelines per organization without redeploying anything.
+- **Database-driven agent graphs** — Define AI workflows as rows, not code. Mix worker, tool, supervisor, and condition nodes per organization without redeploying anything.
 - **GenUI chat interface** — The AI doesn't just reply with text. It generates real Flutter widgets at runtime — cards, galleries, interactive components — composed from JSON.
 - **On-device Gemma** — Intent parsing happens locally on the phone before anything hits the network. Private by default.
 - **CLIP vector search** — Images and their descriptions are embedded in the same 768-dimensional space. Search by image, by text, or by vibes.
 - **Dashboard control room** — Manage projects, devices, API keys, workflow assignments, and one-off dashboard uploads from the same UI.
-- **Visual workflow builder** — Drag-and-drop agent graphs with workers, tools, supervisors, edges, and reusable workflow templates.
-- **Realtime operator feedback** — The Docs and Runs tabs update as uploads land, descriptions finish, segmentations appear, and graph steps advance.
-- **MCP tools as a first-class primitive** — CLIP embeddings, descriptions, similarity search, and segmentation models all sit behind MCP. Agents call them. You can too.
+- **Visual workflow builder** — Drag-and-drop agent graphs with workers, tools, supervisors, condition nodes, edges, and reusable workflow templates.
+- **OCR-aware document review** — OCR runs as a first-class MCP tool, stores extracted text plus confidence metadata, and can feed either rule-based routing or specialist review loops.
+- **Realtime operator feedback** — The Docs and Runs tabs update as uploads land, OCR results persist, descriptions finish, segmentations appear, and graph steps advance.
+- **MCP tools as a first-class primitive** — CLIP embeddings, descriptions, OCR, similarity search, and segmentation models all sit behind MCP. Agents call them. You can too.
 
 ## Tech Stack
 
@@ -43,7 +44,7 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 | **API**       | Bun, Hono, better-auth, Inngest, Pino          | REST routes, presigned uploads, durable job scheduling, structured logging |
 | **Dashboard** | React 19, TanStack Router, Tailwind, shadcn/ui | Workflow builder, project/device/API key management, live operations UI    |
 | **Agents**    | Go, Gin, LangGraph, LangChain, inngestgo       | Graph-based agent orchestration, ReAct workers, step-level tracing         |
-| **MCP**       | Go, MCP go-sdk, replicate-go, GORM             | CLIP embeddings, description generation, segmentation, similarity search   |
+| **MCP**       | Go, MCP go-sdk, replicate-go, GORM             | CLIP embeddings, description generation, OCR, segmentation, similarity search |
 | **Storage**   | Postgres 18 + pgvector, S3-compatible, Redis   | Vector indexes, object storage, session cache                              |
 
 ## Architecture
@@ -67,13 +68,13 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
                          │               ┌──────▼─────────┐
                     ┌────┴───┐           │   MCP Server    │
                     │   S3   │           │                 │
-                    │Storage │           │ CLIP embeddings │
-                    └────────┘           │ Descriptions    │
-                                         │ Similarity      │
+                    │Storage │           │ OCR, CLIP,      │
+                    └────────┘           │ Descriptions,   │
+                                         │ Search, Segment │
                                          └─────────────────┘
 ```
 
-**The pipeline:** Client captures image → API issues presigned S3 URL → Client uploads directly → API acknowledges and fires Inngest event → Go agent service loads the document's agent graph from Postgres → LangGraph builds and executes the workflow → Worker nodes call LLMs, tool nodes call MCP → MCP generates CLIP embeddings and descriptions → Everything lands in Postgres with HNSW cosine indexes → Searchable by meaning.
+**The pipeline:** Client captures image → API issues presigned S3 URL → Client uploads directly → API acknowledges and fires Inngest event → Go agent service loads the document's agent graph from Postgres → LangGraph builds and executes the workflow → Worker nodes call LLMs, tool/condition/supervisor nodes route the work → MCP generates OCR, descriptions, embeddings, and segmentations → Everything lands in Postgres with HNSW cosine indexes plus persisted OCR results → Searchable by meaning.
 
 ## Screenshots
 
@@ -89,13 +90,14 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 |---|---|
 | ![Selected Document and Segmentation](site/public/dashboard-docs-segmentation-detail.png) | ![Agent Run Details](site/public/dashboard-run-detail.png) |
 
-**Agent graphs are data, not code.** Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Three node types:
+**Agent graphs are data, not code.** Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Four node types:
 
 - **Worker** — ReAct agent with access to MCP tools
 - **Tool** — Single MCP tool invocation with input/output mapping
 - **Supervisor** — Multi-agent orchestration across workers
+- **Condition** — Deterministic branching on state with `contains` / `equals` checks and explicit true/false targets
 
-Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture.
+Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture. OCR payloads are persisted separately in `document_ocr_results` so operators can inspect extracted text and confidence without digging through raw run state.
 
 ## Repository Layout
 
@@ -112,7 +114,7 @@ arcnem-vision/
 │   └── packages/shared/    Env helpers
 ├── models/                 Go workspace
 │   ├── agents/             Inngest handlers, LangGraph execution engine
-│   ├── mcp/                MCP server — 5 tools (embeddings, search)
+│   ├── mcp/                MCP server — 7 tools (descriptions, OCR, embeddings, segmentation, search)
 │   ├── db/                 GORM gen introspection (schema → Go models)
 │   └── shared/             Common env loading
 └── docs/                   Deep dives — embeddings, LangChain, LangGraph, GenUI
@@ -154,7 +156,7 @@ That's it. Tilt installs all dependencies, starts Postgres/Redis/MinIO, runs mig
 
 ### 3. Seed the database
 
-In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, and segmentation showcase workflows. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
+In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, OCR keyword-routing and OCR supervisor showcase workflows, and segmentation showcase workflows. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
 
 ### Health checks
 
@@ -196,7 +198,7 @@ curl -X POST http://localhost:3000/api/uploads/ack \
   -d '{"objectKey":"uploads/.../photo.png"}'
 ```
 
-After step 3, Inngest fires `document/process.upload`. The agent graph takes it from there — CLIP embedding, description generation, vector indexing. Done.
+After step 3, Inngest fires `document/process.upload`. The agent graph takes it from there — OCR, description generation, embedding, routing, vector indexing, whatever the assigned workflow defines.
 
 ## Requirements
 
@@ -213,7 +215,7 @@ After step 3, Inngest fires `document/process.upload`. The agent graph takes it 
 | ------------------------------------------ | ---------------------------------------------------------------------------------- |
 | [site/](site/)                             | Local docs site (Starlight) for onboarding and reference pages                     |
 | [docs/embeddings.md](docs/embeddings.md)   | Current embedding implementation and operational constraints                       |
-| [docs/langgraphgo.md](docs/langgraphgo.md) | Graph orchestration patterns, parallel execution, checkpointing, human-in-the-loop |
+| [docs/langgraphgo.md](docs/langgraphgo.md) | Graph orchestration patterns, condition nodes, supervisor routing, checkpointing |
 | [docs/langchaingo.md](docs/langchaingo.md) | LLM providers, chains, agents, tools, MCP bridging                                 |
 | [docs/genui.md](docs/genui.md)             | Flutter GenUI SDK, DataModel binding, A2UI protocol, custom widgets                |
 

@@ -191,6 +191,39 @@ g.AddConditionalEdge("classify", func(ctx context.Context, state ProcessingState
 })
 ```
 
+### Arcnem Vision: Persisted Condition Nodes
+
+In dashboard-authored graphs, we persist deterministic routing as a first-class
+`nodeType="condition"` record instead of attaching optional conditions to
+ordinary edges. That keeps the config serializable, easy to validate in the UI,
+and easy to seed in SQL/TypeScript fixtures.
+
+Condition node config:
+
+```json
+{
+  "source_key": "ocr_text",
+  "operator": "contains",
+  "value": "URGENT",
+  "case_sensitive": false,
+  "true_target": "urgent_worker",
+  "false_target": "general_worker"
+}
+```
+
+What the runtime does:
+
+- Reads `state[source_key]`, coerces it to a trimmed string, then compares it
+  with `contains` or `equals`
+- Stores the chosen next node in an internal state key
+  (`__condition_next:<node_key>`)
+- Optionally writes the boolean match result to the node's `outputKey`
+- Registers a langgraphgo `AddConditionalEdge` that returns `true_target`,
+  `false_target`, or `graph.END`
+
+This is what powers workflows like "run OCR, then route urgent notices to one
+worker and routine notices to another."
+
 ---
 
 ## Parallel Execution
@@ -835,124 +868,81 @@ This bridges our `models/mcp` service's tools into langgraphgo agent graphs.
 
 ## How We Use It: Schema-Driven Graphs
 
-Our architecture is unique: **agent graphs are defined in the database, not in code**. The DB schema (`agent_graphs`, `agent_graph_nodes`, `agent_graph_edges`) stores the graph structure. At runtime, we load a `Snapshot` and build a langgraphgo `StateGraph` from it.
+Our architecture is unique: **agent graphs are defined in the database, not in
+code**. The DB schema (`agent_graphs`, `agent_graph_nodes`,
+`agent_graph_edges`) stores the graph structure. At runtime, we load a
+`Snapshot` and build a langgraphgo `StateGraph` from it.
 
 ### Current Implementation
 
-**`models/agents/graphs/types.go`** -- Type aliases and the Snapshot struct:
+`models/agents/graphs/build_graph.go` builds graphs in two passes:
 
 ```go
-type StateGraph = graphlib.StateGraph[map[string]any]
-type StateRunnable = graphlib.StateRunnable[map[string]any]
+func BuildGraph(snapshot *Snapshot, mcpClient *clients.MCPClient) (*graph.StateRunnable[map[string]any], error) {
+    g := graph.NewStateGraph[map[string]any]()
 
-type Snapshot struct {
-    AgentGraph *dbmodels.AgentGraph
-    Nodes      []*SnapshotNode
-    Edges      []*dbmodels.AgentGraphEdge
-}
+    // Always use a map schema so node deltas merge into the accumulated state.
+    schema := graph.NewMapSchema()
+    g.SetSchema(schema)
 
-type SnapshotNode struct {
-    Node  *dbmodels.AgentGraphNode
-    Model *dbmodels.Model
-    Tools []*dbmodels.Tool
-}
-```
+    // Pass 1: ordinary workers and tool nodes.
+    // Pass 2: supervisor routing nodes and deterministic condition nodes.
+    // Wire static DB edges for ordinary nodes.
+    // Wire AddConditionalEdge for supervisors and conditions.
 
-**`models/agents/graphs/build_graph.go`** -- Converts DB rows to a live graph:
-
-```go
-func BuildGraph(snapshot *Snapshot, factory NodeFuncFactory) (*StateGraph, error) {
-    g := graphlib.NewStateGraph[map[string]any]()
-
-    for _, snapshotNode := range snapshot.Nodes {
-        nodeFn, err := factory(snapshotNode)
-        g.AddNode(nodeKey, snapshotNode.Node.NodeType, nodeFn)
-    }
-
-    g.SetEntryPoint(snapshot.AgentGraph.EntryNode)
-
-    for _, edge := range snapshot.Edges {
-        g.AddEdge(edge.FromNode, edge.ToNode)
-    }
-
-    return g, nil
+    return g.Compile()
 }
 ```
 
-**`models/agents/jobs/process_document_upload.go`** -- The Inngest job that triggers graph execution:
+`models/agents/jobs/process_document_upload.go` then does:
 
-```
+```text
 Inngest event "document/process.upload"
-    → Load document + device + agent graph from DB
-    → BuildGraph(snapshot, factory)
-    → Compile and execute
+    → load document + device + agent graph snapshot from DB
+    → BuildGraph(snapshot, mcpClient)
+    → compile and execute
 ```
 
-### The NodeFuncFactory Pattern
+### The Node Builder Pattern
 
-The `NodeFuncFactory` is how you map a DB node definition to actual executable logic. The default factory is a pass-through. For real agent behavior, implement a factory that:
+Arcnem Vision does not use generic `"llm_call"` / `"tool_exec"` node kinds.
+The runtime has four concrete node types:
 
-1. Reads `node.Node.NodeType` to determine the node kind (e.g., "llm_call", "tool_exec", "embed")
-2. Reads `node.Model` to pick the LLM provider
-3. Reads `node.Tools` to bind available tools
-4. Returns a function that does the actual work
+| Node type | Builder | What it does |
+|-----------|---------|--------------|
+| `worker` | `BuildWorkerNode` | ReAct worker with optional MCP tools and model-backed reasoning |
+| `tool` | `BuildToolNode` | Calls exactly one MCP tool with input/output mapping |
+| `supervisor` | `BuildSupervisorRoutingNode` | Uses an LLM route tool to pick the next worker or finish |
+| `condition` | `BuildConditionNode` | Branches deterministically with `contains` / `equals` |
 
-```go
-func productionNodeFuncFactory(node *graphs.SnapshotNode) (func(ctx context.Context, state map[string]any) (map[string]any, error), error) {
-    switch node.Node.NodeType {
-    case "llm_call":
-        return func(ctx context.Context, state map[string]any) (map[string]any, error) {
-            // Use node.Model to pick the right LLM
-            // Use node.Node.Config for system prompt, temperature, etc.
-            llm := pickLLM(node.Model)
-            messages := state["messages"].([]llms.MessageContent)
-            resp, err := llm.GenerateContent(ctx, messages)
-            if err != nil {
-                return nil, err
-            }
-            state["last_response"] = resp.Choices[0].Content
-            return state, nil
-        }, nil
+Important project conventions:
 
-    case "embed":
-        return func(ctx context.Context, state map[string]any) (map[string]any, error) {
-            text := state["description"].(string)
-            vec, err := embedder.EmbedQuery(ctx, text)
-            if err != nil {
-                return nil, err
-            }
-            state["embedding"] = vec
-            return state, nil
-        }, nil
+- Workers may have multiple tools assigned
+- Tool nodes must have exactly one tool assigned
+- Supervisor nodes cannot have tools, and `config.members` must all be workers
+- Condition nodes cannot have tools or a model, and must expose exactly two
+  managed outgoing edges matching `true_target` and `false_target`
+- When any supervisor exists, we auto-register the `messages` append reducer so
+  supervisor/member conversations survive round-trips through state
 
-    case "tool_exec":
-        return func(ctx context.Context, state map[string]any) (map[string]any, error) {
-            // Bind tools from node.Tools
-            // Execute the tool call from state
-            return state, nil
-        }, nil
+### Supervisors and Conditions Are Implemented Today
 
-    default:
-        return nil, fmt.Errorf("unknown node type: %s", node.Node.NodeType)
-    }
-}
-```
+Conditional routing is not a TODO in this repo anymore:
 
-### What's Not Implemented Yet
+- Supervisor nodes compile to a routing node plus a langgraphgo
+  `AddConditionalEdge`
+- Condition nodes compile to a deterministic node plus a langgraphgo
+  `AddConditionalEdge`
+- Static DB edges are still used for ordinary worker/tool flow
+- Edges *from* supervisors and condition nodes are treated as declarative
+  validation data; the actual next-hop decision comes from the conditional edge
 
-Per `build_graph.go:60-62`:
+That means the dashboard can express both:
 
-```go
-if edge.Condition != nil {
-    return nil, fmt.Errorf("conditional edges are not implemented for edge %s", edge.ID)
-}
-```
-
-To add conditional edge support, you'd:
-
-1. Store a condition expression or function name in `agent_graph_edges.condition`
-2. In `BuildGraph`, call `g.AddConditionalEdge(from, conditionFn)` instead of `g.AddEdge`
-3. The condition function would evaluate the stored expression against the current state
+- deterministic OCR routing like "if OCR text contains `URGENT`, send it to the
+  urgent worker"
+- agentic routing like "have a supervisor pick the best OCR specialist, then
+  finish after the specialist responds"
 
 ---
 
@@ -961,14 +951,14 @@ To add conditional edge support, you'd:
 | Pattern | When to use | Arcnem Vision example |
 |---------|-------------|----------------------|
 | **Basic StateGraph** | Fixed, simple pipeline | Describe → embed → store |
-| **Conditional edges** | Branch based on content | Route by document type (image vs PDF) |
+| **Conditional edges** | Branch based on content | Route OCR text to `urgent_worker` vs `general_worker` |
 | **Parallel execution** | Independent steps | OCR + caption generation in parallel |
 | **Schema + reducers** | Multiple nodes write to same key | Accumulating messages in an agent loop |
 | **Checkpointing** | Long-running or crash-sensitive | Multi-step document processing |
 | **Streaming** | Real-time progress updates | Showing processing status to the client |
 | **Interrupts** | Human approval needed | Low-confidence classifications |
 | **ReAct agent** | Open-ended tool use | "Find similar images and explain why" |
-| **Supervisor** | Multi-agent coordination | Image processor + search agent + summarizer |
+| **Supervisor** | Multi-agent coordination | OCR review supervisor choosing billing vs operations specialists |
 | **Subgraphs** | Reusable sub-workflows | Embedding pipeline reused across agents |
 | **Schema-driven (DB)** | Per-device configurable workflows | Different processing graphs per device |
 | **RetryPolicy** | Unreliable external APIs | LLM calls, S3 operations |
@@ -984,15 +974,19 @@ To add conditional edge support, you'd:
 
 3. **Conditional edges replace static edges.** If you add both `AddEdge("a", "b")` and `AddConditionalEdge("a", fn)`, the conditional edge takes precedence. Don't mix both from the same source node.
 
-4. **`graph.END` is the string `"END"`.** Don't name a node "END".
+4. **Arcnem Vision condition nodes own their outgoing edges.** In the dashboard and DB, a condition node must have exactly two edges matching `true_target` and `false_target`. Those edges are validated statically, but the runtime hop comes from the condition function.
 
-5. **Compilation is cheap.** `g.Compile()` just validates and wraps -- no heavy computation. You can compile per-request if the graph is built dynamically.
+5. **Condition comparisons are string-only.** The current implementation coerces the source value to a trimmed string, then applies `contains` or `equals`. If you need numeric or regex logic, you'll need a richer operator set.
 
-6. **Node functions must be goroutine-safe.** Parallel execution runs nodes in separate goroutines via `sync.WaitGroup`. Don't share mutable state between node closures without synchronization.
+6. **`graph.END` is the string `"END"`.** Don't name a node "END".
 
-7. **Inngest steps vs langgraphgo nodes are different layers.** Inngest handles durable execution, retries, and scheduling. Langgraphgo handles the graph logic within a single Inngest step. Don't confuse the two retry mechanisms.
+7. **Compilation is cheap.** `g.Compile()` just validates and wraps -- no heavy computation. You can compile per-request if the graph is built dynamically.
 
-8. **The `prebuilt` package depends on langchaingo.** If you only need the graph engine without LLM integration, import `graph` alone.
+8. **Node functions must be goroutine-safe.** Parallel execution runs nodes in separate goroutines via `sync.WaitGroup`. Don't share mutable state between node closures without synchronization.
+
+9. **Inngest steps vs langgraphgo nodes are different layers.** Inngest handles durable execution, retries, and scheduling. Langgraphgo handles the graph logic within a single Inngest step. Don't confuse the two retry mechanisms.
+
+10. **The `prebuilt` package depends on langchaingo.** If you only need the graph engine without LLM integration, import `graph` alone.
 
 ---
 

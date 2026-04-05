@@ -35,6 +35,8 @@ export function getNodeTypeTone(nodeType: string) {
 			return "border-amber-400 bg-amber-50 text-amber-900";
 		case "supervisor":
 			return "border-sky-400 bg-sky-50 text-sky-900";
+		case "condition":
+			return "border-violet-400 bg-violet-50 text-violet-900";
 		case "tool":
 			return "border-emerald-400 bg-emerald-50 text-emerald-900";
 		default:

@@ -99,6 +99,7 @@ export type DashboardData = {
 		nodeTypeCounts: {
 			worker: number;
 			supervisor: number;
+			condition: number;
 			tool: number;
 			other: number;
 		};

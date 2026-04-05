@@ -35,6 +35,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		DocumentDescription:          newDocumentDescription(db, opts...),
 		DocumentDescriptionEmbedding: newDocumentDescriptionEmbedding(db, opts...),
 		DocumentEmbedding:            newDocumentEmbedding(db, opts...),
+		DocumentOcrResult:            newDocumentOcrResult(db, opts...),
 		DocumentSegmentation:         newDocumentSegmentation(db, opts...),
 		Invitation:                   newInvitation(db, opts...),
 		Member:                       newMember(db, opts...),
@@ -69,6 +70,7 @@ type Query struct {
 	DocumentDescription          documentDescription
 	DocumentDescriptionEmbedding documentDescriptionEmbedding
 	DocumentEmbedding            documentEmbedding
+	DocumentOcrResult            documentOcrResult
 	DocumentSegmentation         documentSegmentation
 	Invitation                   invitation
 	Member                       member
@@ -104,6 +106,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		DocumentDescription:          q.DocumentDescription.clone(db),
 		DocumentDescriptionEmbedding: q.DocumentDescriptionEmbedding.clone(db),
 		DocumentEmbedding:            q.DocumentEmbedding.clone(db),
+		DocumentOcrResult:            q.DocumentOcrResult.clone(db),
 		DocumentSegmentation:         q.DocumentSegmentation.clone(db),
 		Invitation:                   q.Invitation.clone(db),
 		Member:                       q.Member.clone(db),
@@ -146,6 +149,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		DocumentDescription:          q.DocumentDescription.replaceDB(db),
 		DocumentDescriptionEmbedding: q.DocumentDescriptionEmbedding.replaceDB(db),
 		DocumentEmbedding:            q.DocumentEmbedding.replaceDB(db),
+		DocumentOcrResult:            q.DocumentOcrResult.replaceDB(db),
 		DocumentSegmentation:         q.DocumentSegmentation.replaceDB(db),
 		Invitation:                   q.Invitation.replaceDB(db),
 		Member:                       q.Member.replaceDB(db),
@@ -178,6 +182,7 @@ type queryCtx struct {
 	DocumentDescription          *documentDescriptionDo
 	DocumentDescriptionEmbedding *documentDescriptionEmbeddingDo
 	DocumentEmbedding            *documentEmbeddingDo
+	DocumentOcrResult            *documentOcrResultDo
 	DocumentSegmentation         *documentSegmentationDo
 	Invitation                   *invitationDo
 	Member                       *memberDo
@@ -210,6 +215,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		DocumentDescription:          q.DocumentDescription.WithContext(ctx),
 		DocumentDescriptionEmbedding: q.DocumentDescriptionEmbedding.WithContext(ctx),
 		DocumentEmbedding:            q.DocumentEmbedding.WithContext(ctx),
+		DocumentOcrResult:            q.DocumentOcrResult.WithContext(ctx),
 		DocumentSegmentation:         q.DocumentSegmentation.WithContext(ctx),
 		Invitation:                   q.Invitation.WithContext(ctx),
 		Member:                       q.Member.WithContext(ctx),

@@ -69,6 +69,9 @@ export function SelectedNodePanel({
 				node.nodeType === "worker" && node.localId !== selectedNode.localId,
 		)
 		.map((node) => node.nodeKey);
+	const conditionTargets = nodes
+		.filter((node) => node.localId !== selectedNode.localId)
+		.map((node) => node.nodeKey);
 	const supervisorMembers = asStringArray(config.members);
 
 	const updateConfig = (patch: WorkflowNodeConfig) => {
@@ -205,6 +208,7 @@ export function SelectedNodePanel({
 					<SelectContent>
 						<SelectItem value="worker">worker</SelectItem>
 						<SelectItem value="supervisor">supervisor</SelectItem>
+						<SelectItem value="condition">condition</SelectItem>
 						<SelectItem value="tool">tool</SelectItem>
 					</SelectContent>
 				</Select>
@@ -403,6 +407,156 @@ export function SelectedNodePanel({
 					>
 						Add edge to END
 					</Button>
+				</div>
+			) : null}
+
+			{selectedNode.nodeType === "condition" ? (
+				<div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
+					<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+						Condition config
+					</p>
+					<div>
+						<label
+							htmlFor="canvas-node-condition-source-key"
+							className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
+						>
+							Source key
+						</label>
+						<Input
+							id="canvas-node-condition-source-key"
+							value={
+								typeof config.source_key === "string" ? config.source_key : ""
+							}
+							onChange={(event) =>
+								updateConfig({ source_key: event.target.value })
+							}
+							placeholder="ocr_text"
+						/>
+					</div>
+					<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+						<div>
+							<p className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+								Operator
+							</p>
+							<Select
+								value={
+									typeof config.operator === "string"
+										? config.operator
+										: "contains"
+								}
+								onValueChange={(value) => updateConfig({ operator: value })}
+							>
+								<SelectTrigger className="w-full min-w-0">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="contains">contains</SelectItem>
+									<SelectItem value="equals">equals</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<p className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+								Case sensitive
+							</p>
+							<Select
+								value={config.case_sensitive ? "true" : "false"}
+								onValueChange={(value) =>
+									updateConfig({ case_sensitive: value === "true" })
+								}
+							>
+								<SelectTrigger className="w-full min-w-0">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="false">false</SelectItem>
+									<SelectItem value="true">true</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+					<div>
+						<label
+							htmlFor="canvas-node-condition-value"
+							className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600"
+						>
+							Compare value
+						</label>
+						<Input
+							id="canvas-node-condition-value"
+							value={typeof config.value === "string" ? config.value : ""}
+							onChange={(event) => updateConfig({ value: event.target.value })}
+							placeholder="URGENT"
+						/>
+					</div>
+					<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+						<div>
+							<p className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+								True target
+							</p>
+							<Select
+								value={
+									typeof config.true_target === "string" &&
+									config.true_target.trim().length > 0
+										? config.true_target
+										: "__none"
+								}
+								onValueChange={(value) =>
+									updateConfig({
+										true_target: value === "__none" ? "" : value,
+									})
+								}
+							>
+								<SelectTrigger className="w-full min-w-0">
+									<SelectValue placeholder="Choose target" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="__none">Unset</SelectItem>
+									<SelectItem value="END">END</SelectItem>
+									{conditionTargets.map((nodeKey) => (
+										<SelectItem key={`true-${nodeKey}`} value={nodeKey}>
+											{nodeKey}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<p className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+								False target
+							</p>
+							<Select
+								value={
+									typeof config.false_target === "string" &&
+									config.false_target.trim().length > 0
+										? config.false_target
+										: "__none"
+								}
+								onValueChange={(value) =>
+									updateConfig({
+										false_target: value === "__none" ? "" : value,
+									})
+								}
+							>
+								<SelectTrigger className="w-full min-w-0">
+									<SelectValue placeholder="Choose target" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="__none">Unset</SelectItem>
+									<SelectItem value="END">END</SelectItem>
+									{conditionTargets.map((nodeKey) => (
+										<SelectItem key={`false-${nodeKey}`} value={nodeKey}>
+											{nodeKey}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+					<p className="text-[11px] text-slate-500">
+						If you set an output key above, this node stores the boolean match
+						result there.
+					</p>
 				</div>
 			) : null}
 

@@ -32,6 +32,22 @@ function asStringArray(value: unknown): string[] {
 		.filter((item) => item.length > 0);
 }
 
+function readConditionSummary(node: EditorNode) {
+	if (node.nodeType !== "condition") return null;
+	const sourceKey =
+		typeof node.config.source_key === "string"
+			? node.config.source_key.trim()
+			: "";
+	const operator =
+		typeof node.config.operator === "string" ? node.config.operator.trim() : "";
+	const value =
+		typeof node.config.value === "string" ? node.config.value.trim() : "";
+	if (!sourceKey || !operator || !value) {
+		return "Configure rule";
+	}
+	return `${sourceKey} ${operator} ${value}`;
+}
+
 export function WorkflowCanvasStage({
 	canvasRef,
 	nodes,
@@ -304,6 +320,11 @@ export function WorkflowCanvasStage({
 									Orchestrates{" "}
 									{orchestrationCountBySupervisorKey.get(node.nodeKey) ?? 0}{" "}
 									workers
+								</p>
+							) : null}
+							{node.nodeType === "condition" ? (
+								<p className="mt-2 truncate text-[11px] font-semibold text-violet-700/80">
+									{readConditionSummary(node)}
 								</p>
 							) : null}
 							{node.toolNames.length > 0 ? (

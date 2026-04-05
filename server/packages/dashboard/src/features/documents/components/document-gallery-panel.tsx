@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardData, StatusMessage } from "@/features/dashboard/types";
+import { chunkOCRText } from "@/features/documents/ocr-text";
 import {
 	acknowledgeDocumentUpload,
 	createDocumentUpload,
@@ -39,12 +40,14 @@ import {
 } from "@/features/documents/server/document-mutations";
 import {
 	getDocument,
+	getDocumentOCRResults,
 	getDocumentSegmentations,
 	getDocuments,
 } from "@/features/documents/server/documents-data";
 import type {
 	DocumentItem,
 	DocumentsResponse,
+	OCRResultItem,
 	SegmentedResultItem,
 } from "@/features/documents/types";
 import { useDashboardRealtime } from "@/features/realtime/dashboard-realtime-provider";
@@ -102,6 +105,29 @@ function getDocumentSourceLabel(deviceName: string | null | undefined) {
 	return deviceName ?? "Dashboard Upload";
 }
 
+function StatusNotice({
+	message,
+	className,
+}: {
+	message: StatusMessage;
+	className?: string;
+}) {
+	return (
+		<div
+			role={message.tone === "error" ? "alert" : "status"}
+			className={cn(
+				"rounded-lg border px-3 py-2 text-sm",
+				message.tone === "success"
+					? "border-emerald-200 bg-emerald-50 text-emerald-800"
+					: "border-rose-200 bg-rose-50 text-rose-800",
+				className,
+			)}
+		>
+			{message.text}
+		</div>
+	);
+}
+
 function DocumentCard({
 	doc,
 	isSelected,
@@ -125,7 +151,7 @@ function DocumentCard({
 			)}
 		>
 			<button type="button" className="w-full text-left" onClick={onSelect}>
-				<div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+				<div className="relative aspect-4/3 w-full overflow-hidden bg-slate-100">
 					{imgError ? (
 						<div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-slate-300">
 							<ImageIcon className="size-8" />
@@ -195,7 +221,7 @@ function LoadingSkeleton() {
 					key={key}
 					className="overflow-hidden border-slate-200/60 bg-white/80"
 				>
-					<Skeleton className="aspect-[4/3] w-full rounded-none" />
+					<Skeleton className="aspect-4/3 w-full rounded-none" />
 					<CardContent className="space-y-2 pt-4">
 						<Skeleton className="h-4 w-16" />
 						<Skeleton className="h-4 w-24" />
@@ -213,7 +239,7 @@ function SegmentedResultCard({ result }: { result: SegmentedResultItem }) {
 
 	return (
 		<div className="min-w-60 max-w-60 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-			<div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+			<div className="relative aspect-4/3 overflow-hidden bg-slate-100">
 				{imgError ? (
 					<div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-slate-300">
 						<ImageIcon className="size-7" />
@@ -258,6 +284,487 @@ function SegmentedResultCard({ result }: { result: SegmentedResultItem }) {
 	);
 }
 
+function OCRResultCard({ result }: { result: OCRResultItem }) {
+	const chunks = useMemo(() => chunkOCRText(result.text), [result.text]);
+	const [chunkIndex, setChunkIndex] = useState(0);
+
+	const currentChunk = chunks[chunkIndex] ?? "";
+	const hasMultipleChunks = chunks.length > 1;
+
+	return (
+		<div className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+			<div className="flex flex-wrap items-center gap-2">
+				<Badge
+					variant="secondary"
+					className="max-w-56 truncate rounded-full text-[11px]"
+					title={result.modelLabel}
+				>
+					{result.modelLabel}
+				</Badge>
+				{result.avgConfidence != null ? (
+					<Badge variant="outline" className="rounded-full text-[11px]">
+						Confidence {result.avgConfidence}%
+					</Badge>
+				) : null}
+				<span className="ml-auto text-[11px] text-slate-400">
+					{formatShortDate(result.ocrCreatedAt)}
+				</span>
+			</div>
+
+			<div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+				<p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+					{currentChunk}
+				</p>
+			</div>
+
+			{hasMultipleChunks ? (
+				<div className="flex items-center justify-between gap-3">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => setChunkIndex((index) => Math.max(0, index - 1))}
+						disabled={chunkIndex === 0}
+					>
+						Previous
+					</Button>
+					<p className="text-xs text-slate-500">
+						Chunk {chunkIndex + 1} of {chunks.length}
+					</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() =>
+							setChunkIndex((index) => Math.min(chunks.length - 1, index + 1))
+						}
+						disabled={chunkIndex >= chunks.length - 1}
+					>
+						Next
+					</Button>
+				</div>
+			) : null}
+
+			<details className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+				<summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+					Raw JSON
+				</summary>
+				<pre className="mt-3 max-h-64 overflow-auto rounded-lg bg-white p-3 text-[11px] text-slate-700">
+					{JSON.stringify(result.result ?? {}, null, 2)}
+				</pre>
+			</details>
+		</div>
+	);
+}
+
+function DocumentDetailModal({
+	selectedDocument,
+	selectedDocumentProjectName,
+	selectedDocumentSourceLabel,
+	selectedDocumentDevice,
+	selectedWorkflowId,
+	selectedWorkflowName,
+	workflows,
+	runningDocumentId,
+	selectedDocumentOCRResults,
+	selectedDocumentOCRResultsError,
+	isLoadingSelectedDocumentOCRResults,
+	selectedDocumentSegmentedResults,
+	selectedDocumentSegmentedResultsError,
+	isLoadingSelectedDocumentSegmentedResults,
+	statusMessage,
+	onWorkflowChange,
+	onRunSelectedWorkflow,
+	onClose,
+}: {
+	selectedDocument: DocumentItem;
+	selectedDocumentProjectName: string;
+	selectedDocumentSourceLabel: string;
+	selectedDocumentDevice: DashboardData["devices"][number] | null;
+	selectedWorkflowId: string;
+	selectedWorkflowName: string | null;
+	workflows: DashboardData["workflows"];
+	runningDocumentId: string | null;
+	selectedDocumentOCRResults: OCRResultItem[];
+	selectedDocumentOCRResultsError: string | null;
+	isLoadingSelectedDocumentOCRResults: boolean;
+	selectedDocumentSegmentedResults: SegmentedResultItem[];
+	selectedDocumentSegmentedResultsError: string | null;
+	isLoadingSelectedDocumentSegmentedResults: boolean;
+	statusMessage: StatusMessage | null;
+	onWorkflowChange: (workflowId: string) => void;
+	onRunSelectedWorkflow: () => void;
+	onClose: () => void;
+}) {
+	const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+	const titleId = `selected-document-title-${selectedDocument.id}`;
+	const descriptionId = `selected-document-description-${selectedDocument.id}`;
+
+	useEffect(() => {
+		closeButtonRef.current?.focus();
+	}, []);
+
+	useEffect(() => {
+		const previousOverflow = window.document.body.style.overflow;
+		const previousPaddingRight = window.document.body.style.paddingRight;
+		const scrollbarWidth =
+			window.innerWidth - window.document.documentElement.clientWidth;
+
+		window.document.body.style.overflow = "hidden";
+		if (scrollbarWidth > 0) {
+			window.document.body.style.paddingRight = `${scrollbarWidth}px`;
+		}
+
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				onClose();
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+
+		return () => {
+			window.document.body.style.overflow = previousOverflow;
+			window.document.body.style.paddingRight = previousPaddingRight;
+			window.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [onClose]);
+
+	return (
+		<div className="fixed inset-0 z-50">
+			<button
+				type="button"
+				aria-label="Close image details"
+				className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
+				onClick={onClose}
+			/>
+
+			<div className="relative flex min-h-full items-end justify-center p-3 sm:items-center sm:p-6">
+				<div
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby={titleId}
+					aria-describedby={descriptionId}
+					className="relative flex max-h-[calc(100vh-1.5rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_32px_90px_rgba(15,23,42,0.26)] sm:max-h-[calc(100vh-3rem)]"
+				>
+					<div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_32%),radial-gradient(circle_at_top_right,rgba(251,191,36,0.16),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.88))] px-4 py-4 sm:px-6">
+						<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+							<div className="space-y-3">
+								<div className="flex flex-wrap items-center gap-2">
+									<Badge variant="secondary" className="rounded-full">
+										{selectedDocumentProjectName}
+									</Badge>
+									<Badge variant="secondary" className="rounded-full">
+										{selectedDocumentSourceLabel}
+									</Badge>
+									<Badge variant="outline" className="rounded-full">
+										{formatShortDate(selectedDocument.createdAt)}
+									</Badge>
+								</div>
+								<div className="space-y-1">
+									<h2
+										id={titleId}
+										className="text-xl font-semibold tracking-tight text-slate-950"
+									>
+										Image detail workspace
+									</h2>
+									<p
+										id={descriptionId}
+										className="max-w-3xl text-sm leading-relaxed text-slate-600"
+									>
+										Run a workflow against this image, inspect OCR output, and
+										review derived segments without losing your place in the
+										gallery.
+									</p>
+								</div>
+							</div>
+
+							<Button
+								ref={closeButtonRef}
+								type="button"
+								variant="outline"
+								onClick={onClose}
+								className="shrink-0 rounded-full border-slate-300 bg-white/85 text-slate-600 hover:bg-white"
+							>
+								<X className="mr-2 size-4" />
+								Close
+							</Button>
+						</div>
+					</div>
+
+					<div className="overflow-y-auto">
+						<div className="grid gap-6 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+							<div className="space-y-5">
+								<div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-slate-100 shadow-sm">
+									<img
+										src={selectedDocument.thumbnailUrl}
+										alt={selectedDocument.description ?? "Selected document"}
+										className="aspect-4/3 w-full object-cover"
+									/>
+								</div>
+
+								<div className="rounded-3xl border border-slate-200/80 bg-white/90 p-4 shadow-sm">
+									<div className="flex flex-wrap items-center gap-2">
+										<Badge variant="outline" className="rounded-full">
+											{selectedDocument.contentType
+												.split("/")
+												.pop()
+												?.toUpperCase() ?? "FILE"}
+										</Badge>
+										<Badge variant="outline" className="rounded-full">
+											{formatBytes(selectedDocument.sizeBytes)}
+										</Badge>
+										<Badge variant="outline" className="rounded-full">
+											ID {selectedDocument.id.slice(0, 8)}
+										</Badge>
+									</div>
+									<div className="mt-4 space-y-1">
+										<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+											Description
+										</p>
+										<p className="text-sm leading-relaxed text-slate-600">
+											{selectedDocument.description ??
+												"No description generated yet."}
+										</p>
+									</div>
+								</div>
+
+								<div className="space-y-2">
+									<div className="flex flex-wrap items-center justify-between gap-2">
+										<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+											Related OCR Results
+										</p>
+										<p className="text-xs text-slate-400">
+											Workflow-generated text extraction appears here.
+										</p>
+									</div>
+
+									{isLoadingSelectedDocumentOCRResults ? (
+										<div className="space-y-3">
+											{["ocr-a", "ocr-b"].map((key) => (
+												<div
+													key={key}
+													className="rounded-2xl border border-slate-200/80 bg-white p-4"
+												>
+													<div className="flex items-center gap-2">
+														<Skeleton className="h-5 w-32" />
+														<Skeleton className="h-5 w-20" />
+													</div>
+													<div className="mt-3 space-y-2">
+														<Skeleton className="h-4 w-full" />
+														<Skeleton className="h-4 w-full" />
+														<Skeleton className="h-4 w-2/3" />
+													</div>
+												</div>
+											))}
+										</div>
+									) : selectedDocumentOCRResultsError ? (
+										<p className="text-sm text-rose-600">
+											{selectedDocumentOCRResultsError}
+										</p>
+									) : selectedDocumentOCRResults.length > 0 ? (
+										<div className="space-y-3">
+											{selectedDocumentOCRResults.map((result) => (
+												<OCRResultCard
+													key={result.ocrResultId}
+													result={result}
+												/>
+											))}
+										</div>
+									) : (
+										<div className="rounded-2xl border border-dashed border-slate-300/80 bg-slate-50/70 px-4 py-3">
+											<p className="text-sm text-slate-500">
+												No OCR results yet for this image.
+											</p>
+											<p className="mt-1 text-xs text-slate-400">
+												Run an OCR workflow to capture extracted text here.
+											</p>
+										</div>
+									)}
+								</div>
+
+								<div className="space-y-2">
+									<div className="flex flex-wrap items-center justify-between gap-2">
+										<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+											Related Segmented Results
+										</p>
+										<p className="text-xs text-slate-400">
+											Derived outputs stay nested under this source image.
+										</p>
+									</div>
+
+									{isLoadingSelectedDocumentSegmentedResults ? (
+										<div className="flex gap-3 overflow-x-auto pb-2">
+											{["seg-a", "seg-b", "seg-c"].map((key) => (
+												<div
+													key={key}
+													className="min-w-60 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white"
+												>
+													<Skeleton className="aspect-4/3 w-full rounded-none" />
+													<div className="space-y-2 p-3">
+														<Skeleton className="h-4 w-24" />
+														<Skeleton className="h-4 w-32" />
+														<Skeleton className="h-4 w-full" />
+													</div>
+												</div>
+											))}
+										</div>
+									) : selectedDocumentSegmentedResultsError ? (
+										<p className="text-sm text-rose-600">
+											{selectedDocumentSegmentedResultsError}
+										</p>
+									) : selectedDocumentSegmentedResults.length > 0 ? (
+										<div className="flex gap-3 overflow-x-auto pb-2">
+											{selectedDocumentSegmentedResults.map((result) => (
+												<SegmentedResultCard
+													key={result.segmentationId}
+													result={result}
+												/>
+											))}
+										</div>
+									) : (
+										<div className="rounded-2xl border border-dashed border-slate-300/80 bg-slate-50/70 px-4 py-3">
+											<p className="text-sm text-slate-500">
+												No segmented results yet for this image.
+											</p>
+											<p className="mt-1 text-xs text-slate-400">
+												When a segmentation workflow creates derived images,
+												they&apos;ll appear here instead of the main gallery.
+											</p>
+										</div>
+									)}
+								</div>
+							</div>
+
+							<div className="space-y-4 xl:sticky xl:top-0 xl:self-start">
+								<div className="rounded-3xl border border-slate-200/80 bg-slate-50/85 p-4 shadow-sm">
+									<div className="space-y-1">
+										<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+											Workflow
+										</p>
+										<p className="text-sm leading-relaxed text-slate-500">
+											Choose which workflow to run against the selected image.
+										</p>
+									</div>
+
+									<div className="mt-4 space-y-4">
+										{statusMessage ? (
+											<StatusNotice message={statusMessage} />
+										) : null}
+
+										<Select
+											value={selectedWorkflowId}
+											onValueChange={onWorkflowChange}
+											disabled={workflows.length === 0}
+										>
+											<SelectTrigger className="border-slate-300 bg-white">
+												<SelectValue placeholder="Choose a workflow" />
+											</SelectTrigger>
+											<SelectContent>
+												{workflows.map((workflow) => (
+													<SelectItem key={workflow.id} value={workflow.id}>
+														{workflow.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+
+										<div className="space-y-1 text-sm text-slate-500">
+											{selectedDocument.deviceId ? (
+												<p>
+													Source device workflow:{" "}
+													<span className="font-medium text-slate-700">
+														{selectedDocumentDevice?.workflowName ??
+															"Not assigned"}
+													</span>
+												</p>
+											) : (
+												<p>
+													Source:{" "}
+													<span className="font-medium text-slate-700">
+														Dashboard upload with no device binding
+													</span>
+												</p>
+											)}
+											<p>
+												Queued workflow:{" "}
+												<span className="font-medium text-slate-700">
+													{selectedWorkflowName ?? "Choose one above"}
+												</span>
+											</p>
+										</div>
+
+										<Button
+											type="button"
+											onClick={onRunSelectedWorkflow}
+											disabled={
+												workflows.length === 0 ||
+												!selectedWorkflowId ||
+												runningDocumentId === selectedDocument.id
+											}
+											className="w-full"
+										>
+											{runningDocumentId === selectedDocument.id ? (
+												<>
+													<Loader2 className="mr-2 size-4 animate-spin" />
+													Queueing workflow...
+												</>
+											) : (
+												<>
+													<Play className="mr-2 size-4" />
+													Run Workflow
+												</>
+											)}
+										</Button>
+
+										{workflows.length === 0 ? (
+											<p className="text-sm text-slate-500">
+												Create a workflow in the Workflow Library tab first.
+											</p>
+										) : null}
+									</div>
+								</div>
+
+								<div className="rounded-3xl border border-slate-200/80 bg-white/90 p-4 shadow-sm">
+									<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+										Context
+									</p>
+									<div className="mt-3 space-y-3 text-sm text-slate-500">
+										<div>
+											<p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+												Project
+											</p>
+											<p className="mt-1 font-medium text-slate-700">
+												{selectedDocumentProjectName}
+											</p>
+										</div>
+										<div>
+											<p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+												Source
+											</p>
+											<p className="mt-1 font-medium text-slate-700">
+												{selectedDocumentSourceLabel}
+											</p>
+										</div>
+										<div>
+											<p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+												Created
+											</p>
+											<p className="mt-1 font-medium text-slate-700">
+												{new Date(selectedDocument.createdAt).toLocaleString()}
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export function DocumentGalleryPanel({
 	initialData,
 	organizationId,
@@ -274,11 +781,13 @@ export function DocumentGalleryPanel({
 	const { lastEvent, reconnectCount } = useDashboardRealtime();
 	const fetchDocuments = useServerFn(getDocuments);
 	const fetchDocument = useServerFn(getDocument);
+	const fetchDocumentOCRResults = useServerFn(getDocumentOCRResults);
 	const fetchDocumentSegmentations = useServerFn(getDocumentSegmentations);
 	const requestUpload = useServerFn(createDocumentUpload);
 	const finalizeUpload = useServerFn(acknowledgeDocumentUpload);
 	const queueWorkflowRun = useServerFn(runDocumentWorkflow);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
+	const ocrRequestIdRef = useRef(0);
 	const segmentationRequestIdRef = useRef(0);
 
 	const [documents, setDocuments] = useState<DocumentItem[]>(
@@ -299,6 +808,12 @@ export function DocumentGalleryPanel({
 		null,
 	);
 	const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+	const [ocrResults, setOCRResults] = useState<OCRResultItem[]>([]);
+	const [ocrResultsDocumentId, setOCRResultsDocumentId] = useState<
+		string | null
+	>(null);
+	const [ocrResultsError, setOCRResultsError] = useState<string | null>(null);
+	const [loadingOCRResults, setLoadingOCRResults] = useState(false);
 	const [segmentedResults, setSegmentedResults] = useState<
 		SegmentedResultItem[]
 	>([]);
@@ -309,9 +824,10 @@ export function DocumentGalleryPanel({
 		string | null
 	>(null);
 	const [loadingSegmentedResults, setLoadingSegmentedResults] = useState(false);
-	const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(
-		null,
-	);
+	const [uploadStatusMessage, setUploadStatusMessage] =
+		useState<StatusMessage | null>(null);
+	const [workflowStatusMessage, setWorkflowStatusMessage] =
+		useState<StatusMessage | null>(null);
 	const [uploading, setUploading] = useState(false);
 	const [runningDocumentId, setRunningDocumentId] = useState<string | null>(
 		null,
@@ -403,10 +919,38 @@ export function DocumentGalleryPanel({
 		}
 	});
 
+	const loadOCRResults = useEffectEvent(async (documentId: string) => {
+		const requestId = ++ocrRequestIdRef.current;
+		setOCRResultsDocumentId(documentId);
+		setOCRResults([]);
+		setOCRResultsError(null);
+		setLoadingOCRResults(true);
+
+		try {
+			const result = await fetchDocumentOCRResults({
+				data: { documentId },
+			});
+			if (ocrRequestIdRef.current !== requestId) {
+				return;
+			}
+			setOCRResults(result.ocrResults);
+		} catch {
+			if (ocrRequestIdRef.current !== requestId) {
+				return;
+			}
+			setOCRResultsError("Unable to load OCR results.");
+		} finally {
+			if (ocrRequestIdRef.current === requestId) {
+				setLoadingOCRResults(false);
+			}
+		}
+	});
+
 	const selectDocument = (document: DocumentItem) => {
 		setSelectedDocumentId(document.id);
 		setSelectedWorkflowId(defaultWorkflowIdForDocument(document));
-		setStatusMessage(null);
+		setWorkflowStatusMessage(null);
+		void loadOCRResults(document.id);
 		void loadSegmentedResults(document.id);
 	};
 
@@ -431,6 +975,18 @@ export function DocumentGalleryPanel({
 		selectedDocument && segmentedResultsDocumentId === selectedDocument.id
 			? segmentedResults
 			: [];
+	const selectedDocumentOCRResults =
+		selectedDocument && ocrResultsDocumentId === selectedDocument.id
+			? ocrResults
+			: [];
+	const selectedDocumentOCRResultsError =
+		selectedDocument && ocrResultsDocumentId === selectedDocument.id
+			? ocrResultsError
+			: null;
+	const isLoadingSelectedDocumentOCRResults =
+		Boolean(selectedDocument) &&
+		ocrResultsDocumentId === selectedDocument?.id &&
+		loadingOCRResults;
 	const selectedDocumentSegmentedResultsError =
 		selectedDocument && segmentedResultsDocumentId === selectedDocument.id
 			? segmentedResultsError
@@ -471,9 +1027,15 @@ export function DocumentGalleryPanel({
 				(lastEvent.reason === DASHBOARD_REALTIME_REASON.descriptionUpserted &&
 					selectedDocumentSourceWasUpdated &&
 					lastEvent.documentId !== selectedDocumentId);
+			const shouldRefreshOCRResults =
+				lastEvent.reason === DASHBOARD_REALTIME_REASON.ocrCreated &&
+				lastEvent.documentId === selectedDocumentId;
 
 			if (selectedDocumentWasUpdated || shouldRefreshSegmentedResults) {
 				await loadSegmentedResults(selectedDocumentId);
+			}
+			if (selectedDocumentWasUpdated || shouldRefreshOCRResults) {
+				await loadOCRResults(selectedDocumentId);
 			}
 		})();
 	}, [isFiltering, lastEvent, selectedDocumentId]);
@@ -490,6 +1052,7 @@ export function DocumentGalleryPanel({
 
 			if (selectedDocumentId) {
 				await refreshDocumentById(selectedDocumentId);
+				await loadOCRResults(selectedDocumentId);
 				await loadSegmentedResults(selectedDocumentId);
 			}
 		})();
@@ -571,7 +1134,7 @@ export function DocumentGalleryPanel({
 		if (!file) return;
 
 		if (!selectedProjectId) {
-			setStatusMessage({
+			setUploadStatusMessage({
 				tone: "error",
 				text: "Choose a project before uploading.",
 			});
@@ -579,7 +1142,7 @@ export function DocumentGalleryPanel({
 		}
 
 		setUploading(true);
-		setStatusMessage(null);
+		setUploadStatusMessage(null);
 		try {
 			const presignedUpload = await requestUpload({
 				data: {
@@ -629,12 +1192,12 @@ export function DocumentGalleryPanel({
 			setQuery("");
 			setSearchError(null);
 			selectDocument(acknowledgedUpload.document);
-			setStatusMessage({
+			setWorkflowStatusMessage({
 				tone: "success",
 				text: "Image uploaded. Select a workflow below to run it against this document.",
 			});
 		} catch (error) {
-			setStatusMessage({
+			setUploadStatusMessage({
 				tone: "error",
 				text: error instanceof Error ? error.message : "Image upload failed.",
 			});
@@ -645,14 +1208,14 @@ export function DocumentGalleryPanel({
 
 	const onRunSelectedWorkflow = async () => {
 		if (!selectedDocument) {
-			setStatusMessage({
+			setWorkflowStatusMessage({
 				tone: "error",
 				text: "Select a document first.",
 			});
 			return;
 		}
 		if (!selectedWorkflowId) {
-			setStatusMessage({
+			setWorkflowStatusMessage({
 				tone: "error",
 				text: "Choose a workflow before running.",
 			});
@@ -660,7 +1223,7 @@ export function DocumentGalleryPanel({
 		}
 
 		setRunningDocumentId(selectedDocument.id);
-		setStatusMessage(null);
+		setWorkflowStatusMessage(null);
 		try {
 			const result = await queueWorkflowRun({
 				data: {
@@ -668,12 +1231,12 @@ export function DocumentGalleryPanel({
 					workflowId: selectedWorkflowId,
 				},
 			});
-			setStatusMessage({
+			setWorkflowStatusMessage({
 				tone: "success",
 				text: `${result.workflowName} queued. Check the Runs tab for progress.`,
 			});
 		} catch (error) {
-			setStatusMessage({
+			setWorkflowStatusMessage({
 				tone: "error",
 				text:
 					error instanceof Error
@@ -683,6 +1246,12 @@ export function DocumentGalleryPanel({
 		} finally {
 			setRunningDocumentId(null);
 		}
+	};
+
+	const closeSelectedDocument = () => {
+		setSelectedDocumentId(null);
+		setSelectedWorkflowId("");
+		setWorkflowStatusMessage(null);
 	};
 
 	return (
@@ -843,214 +1412,13 @@ export function DocumentGalleryPanel({
 							New dashboard uploads appear in the gallery as independent project
 							assets. Click the image afterward to run any workflow you want.
 						</p>
+
+						{uploadStatusMessage ? (
+							<StatusNotice message={uploadStatusMessage} />
+						) : null}
 					</CardContent>
 				</Card>
 			</div>
-
-			{statusMessage ? (
-				<div
-					className={cn(
-						"rounded-lg px-3 py-2 text-sm",
-						statusMessage.tone === "success"
-							? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-							: "border border-rose-200 bg-rose-50 text-rose-800",
-					)}
-				>
-					{statusMessage.text}
-				</div>
-			) : null}
-
-			{selectedDocument ? (
-				<Card className="overflow-hidden border-slate-200/60 bg-white/85 shadow-sm">
-					<CardHeader className="pb-3">
-						<CardTitle className="text-lg">Selected Document</CardTitle>
-						<CardDescription>
-							Run a workflow against this image{" "}
-							{selectedDocument.deviceId
-								? "without changing the source device's saved workflow assignment."
-								: "as a standalone dashboard upload."}
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
-						<div className="space-y-4">
-							<div className="overflow-hidden rounded-2xl bg-slate-100">
-								<img
-									src={selectedDocument.thumbnailUrl}
-									alt={selectedDocument.description ?? "Selected document"}
-									className="aspect-[4/3] w-full object-cover"
-								/>
-							</div>
-							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="secondary">{selectedDocumentProjectName}</Badge>
-								<Badge variant="secondary">{selectedDocumentSourceLabel}</Badge>
-								<Badge variant="outline">
-									{selectedDocument.contentType
-										.split("/")
-										.pop()
-										?.toUpperCase() ?? "FILE"}
-								</Badge>
-								<Badge variant="outline">
-									{formatBytes(selectedDocument.sizeBytes)}
-								</Badge>
-							</div>
-							<div className="space-y-1">
-								<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-									Description
-								</p>
-								<p className="text-sm leading-relaxed text-slate-600">
-									{selectedDocument.description ??
-										"No description generated yet."}
-								</p>
-							</div>
-
-							<div className="space-y-2">
-								<div className="flex flex-wrap items-center justify-between gap-2">
-									<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-										Related Segmented Results
-									</p>
-									<p className="text-xs text-slate-400">
-										Derived outputs stay nested under this source image.
-									</p>
-								</div>
-
-								{isLoadingSelectedDocumentSegmentedResults ? (
-									<div className="flex gap-3 overflow-x-auto pb-2">
-										{["seg-a", "seg-b", "seg-c"].map((key) => (
-											<div
-												key={key}
-												className="min-w-60 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white"
-											>
-												<Skeleton className="aspect-[4/3] w-full rounded-none" />
-												<div className="space-y-2 p-3">
-													<Skeleton className="h-4 w-24" />
-													<Skeleton className="h-4 w-32" />
-													<Skeleton className="h-4 w-full" />
-												</div>
-											</div>
-										))}
-									</div>
-								) : selectedDocumentSegmentedResultsError ? (
-									<p className="text-sm text-rose-600">
-										{selectedDocumentSegmentedResultsError}
-									</p>
-								) : selectedDocumentSegmentedResults.length > 0 ? (
-									<div className="flex gap-3 overflow-x-auto pb-2">
-										{selectedDocumentSegmentedResults.map((result) => (
-											<SegmentedResultCard
-												key={result.segmentationId}
-												result={result}
-											/>
-										))}
-									</div>
-								) : (
-									<div className="rounded-2xl border border-dashed border-slate-300/80 bg-slate-50/70 px-4 py-3">
-										<p className="text-sm text-slate-500">
-											No segmented results yet for this image.
-										</p>
-										<p className="mt-1 text-xs text-slate-400">
-											When a segmentation workflow creates derived images,
-											they&apos;ll appear here instead of the main gallery.
-										</p>
-									</div>
-								)}
-							</div>
-						</div>
-
-						<div className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
-							<div className="space-y-1.5">
-								<p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-									Workflow
-								</p>
-								<Select
-									value={selectedWorkflowId}
-									onValueChange={setSelectedWorkflowId}
-									disabled={workflows.length === 0}
-								>
-									<SelectTrigger className="border-slate-300 bg-white">
-										<SelectValue placeholder="Choose a workflow" />
-									</SelectTrigger>
-									<SelectContent>
-										{workflows.map((workflow) => (
-											<SelectItem key={workflow.id} value={workflow.id}>
-												{workflow.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-
-							<div className="space-y-1 text-sm text-slate-500">
-								{selectedDocument.deviceId ? (
-									<p>
-										Source device workflow:{" "}
-										<span className="font-medium text-slate-700">
-											{selectedDocumentDevice?.workflowName ?? "Not assigned"}
-										</span>
-									</p>
-								) : (
-									<p>
-										Source:{" "}
-										<span className="font-medium text-slate-700">
-											Dashboard upload with no device binding
-										</span>
-									</p>
-								)}
-								<p>
-									Queued workflow:{" "}
-									<span className="font-medium text-slate-700">
-										{selectedWorkflowName ?? "Choose one above"}
-									</span>
-								</p>
-							</div>
-
-							<Button
-								type="button"
-								onClick={onRunSelectedWorkflow}
-								disabled={
-									workflows.length === 0 ||
-									!selectedWorkflowId ||
-									runningDocumentId === selectedDocument.id
-								}
-								className="w-full"
-							>
-								{runningDocumentId === selectedDocument.id ? (
-									<>
-										<Loader2 className="mr-2 size-4 animate-spin" />
-										Queueing workflow...
-									</>
-								) : (
-									<>
-										<Play className="mr-2 size-4" />
-										Run Workflow
-									</>
-								)}
-							</Button>
-
-							{workflows.length === 0 ? (
-								<p className="text-sm text-slate-500">
-									Create a workflow in the Workflow Library tab first.
-								</p>
-							) : null}
-						</div>
-					</CardContent>
-				</Card>
-			) : documents.length > 0 ? (
-				<Card className="border-dashed border-slate-300/80 bg-white/70 shadow-sm">
-					<CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-						<div className="rounded-2xl bg-slate-100 p-4">
-							<ImageIcon className="size-8 text-slate-300" />
-						</div>
-						<div>
-							<p className="text-sm font-medium text-slate-500">
-								Select an image to inspect it
-							</p>
-							<p className="mt-1 text-sm text-slate-400">
-								Click any document card below to choose a workflow and run it.
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-			) : null}
 
 			{documents.length === 0 ? (
 				<Card className="border-slate-200/60 bg-white/80 py-16 text-center shadow-sm">
@@ -1110,6 +1478,38 @@ export function DocumentGalleryPanel({
 					) : null}
 				</>
 			)}
+
+			{selectedDocument && selectedDocumentProjectName ? (
+				<DocumentDetailModal
+					selectedDocument={selectedDocument}
+					selectedDocumentProjectName={selectedDocumentProjectName}
+					selectedDocumentSourceLabel={selectedDocumentSourceLabel}
+					selectedDocumentDevice={selectedDocumentDevice}
+					selectedWorkflowId={selectedWorkflowId}
+					selectedWorkflowName={selectedWorkflowName}
+					workflows={workflows}
+					runningDocumentId={runningDocumentId}
+					selectedDocumentOCRResults={selectedDocumentOCRResults}
+					selectedDocumentOCRResultsError={selectedDocumentOCRResultsError}
+					isLoadingSelectedDocumentOCRResults={
+						isLoadingSelectedDocumentOCRResults
+					}
+					selectedDocumentSegmentedResults={selectedDocumentSegmentedResults}
+					selectedDocumentSegmentedResultsError={
+						selectedDocumentSegmentedResultsError
+					}
+					isLoadingSelectedDocumentSegmentedResults={
+						isLoadingSelectedDocumentSegmentedResults
+					}
+					statusMessage={workflowStatusMessage}
+					onWorkflowChange={(workflowId) => {
+						setSelectedWorkflowId(workflowId);
+						setWorkflowStatusMessage(null);
+					}}
+					onRunSelectedWorkflow={onRunSelectedWorkflow}
+					onClose={closeSelectedDocument}
+				/>
+			) : null}
 		</div>
 	);
 }

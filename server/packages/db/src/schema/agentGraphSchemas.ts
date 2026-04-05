@@ -75,10 +75,6 @@ export const agentGraphTemplateNodes = pgTable(
 	(t) => [
 		unique().on(t.agentGraphTemplateId, t.nodeKey),
 		index("agent_graph_template_nodes_model_id_idx").on(t.modelId),
-		check(
-			"agent_graph_template_nodes_node_type_known",
-			sql`${t.nodeType} in ('worker', 'supervisor', 'tool')`,
-		),
 	],
 );
 
@@ -204,10 +200,6 @@ export const agentGraphNodes = pgTable(
 	(t) => [
 		unique().on(t.agentGraphId, t.nodeKey),
 		index("agent_graph_nodes_model_id_idx").on(t.modelId),
-		check(
-			"agent_graph_nodes_node_type_known",
-			sql`${t.nodeType} in ('worker', 'supervisor', 'tool')`,
-		),
 	],
 );
 

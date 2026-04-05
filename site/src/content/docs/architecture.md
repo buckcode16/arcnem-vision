@@ -24,27 +24,28 @@ description: How the services, data pipeline, and agent graph system fit togethe
                          │               ┌──────▼─────────┐
                     ┌────┴───┐           │   MCP Server    │
                     │   S3   │           │                 │
-                    │Storage │           │ CLIP embeddings │
-                    └────────┘           │ Descriptions    │
-                                         │ Similarity      │
+                    │Storage │           │ OCR, CLIP,      │
+                    └────────┘           │ Descriptions,   │
+                                         │ Search, Segment │
                                          └─────────────────┘
 ```
 
 ## The Pipeline
 
-Client captures image → API issues presigned S3 URL → Client uploads directly → API acknowledges and fires Inngest event → Go agent service loads the document's agent graph from Postgres → LangGraph builds and executes the workflow → Worker nodes call LLMs, tool nodes call MCP → MCP generates CLIP embeddings and descriptions → Everything lands in Postgres with HNSW cosine indexes → Searchable by meaning.
+Client captures image → API issues presigned S3 URL → Client uploads directly → API acknowledges and fires Inngest event → Go agent service loads the document's agent graph from Postgres → LangGraph builds and executes the workflow → Worker nodes call LLMs, tool/condition/supervisor nodes route the work → MCP generates OCR, descriptions, embeddings, and segmentations → Everything lands in Postgres with HNSW cosine indexes plus persisted OCR results → Searchable by meaning.
 
 ## Agent Graph System
 
 ![Workflow Library showing both pipeline and supervisor workflows](/dashboard-workflows.png)
 
-Agent graphs are data, not code. Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Three node types:
+Agent graphs are data, not code. Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Four node types:
 
 - **Worker** — ReAct agent with access to MCP tools
 - **Tool** — Single MCP tool invocation with input/output mapping
 - **Supervisor** — Multi-agent orchestration across workers
+- **Condition** — Deterministic branching on state using `contains` / `equals` checks and explicit true/false targets
 
-Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture.
+Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture. OCR payloads are persisted in `document_ocr_results`, so operators can inspect extracted text and confidence directly in the dashboard.
 
 ## Repository Layout
 
@@ -61,7 +62,7 @@ arcnem-vision/
 │   └── packages/shared/    Env helpers
 ├── models/                 Go workspace
 │   ├── agents/             Inngest handlers, LangGraph execution engine
-│   ├── mcp/                MCP server — 5 tools (embeddings, search)
+│   ├── mcp/                MCP server — 7 tools (descriptions, OCR, embeddings, segmentation, search)
 │   ├── db/                 GORM gen introspection (schema → Go models)
 │   └── shared/             Common env loading
 └── docs/                   Deep dives — embeddings, LangChain, LangGraph, GenUI

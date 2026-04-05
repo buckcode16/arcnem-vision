@@ -11,6 +11,7 @@ export type DashboardRealtimeScope =
 export const DASHBOARD_REALTIME_REASON = {
 	documentCreated: "document-created",
 	descriptionUpserted: "description-upserted",
+	ocrCreated: "ocr-created",
 	segmentationCreated: "segmentation-created",
 	runCreated: "run-created",
 	runStepChanged: "run-step-changed",
@@ -28,6 +29,7 @@ const DASHBOARD_REALTIME_REASON_SCOPE: Record<
 		DASHBOARD_REALTIME_SCOPE.documents,
 	[DASHBOARD_REALTIME_REASON.descriptionUpserted]:
 		DASHBOARD_REALTIME_SCOPE.documents,
+	[DASHBOARD_REALTIME_REASON.ocrCreated]: DASHBOARD_REALTIME_SCOPE.documents,
 	[DASHBOARD_REALTIME_REASON.segmentationCreated]:
 		DASHBOARD_REALTIME_SCOPE.documents,
 	[DASHBOARD_REALTIME_REASON.runCreated]: DASHBOARD_REALTIME_SCOPE.runs,

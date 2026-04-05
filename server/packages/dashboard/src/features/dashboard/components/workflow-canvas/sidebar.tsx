@@ -41,6 +41,14 @@ export function WorkflowCanvasSidebar({
 				>
 					+ Tool node
 				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					className="justify-start"
+					onClick={() => onAddNode("condition")}
+				>
+					+ Condition node
+				</Button>
 			</div>
 
 			<div className="mt-6">

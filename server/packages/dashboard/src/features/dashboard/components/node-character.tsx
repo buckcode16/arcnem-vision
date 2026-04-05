@@ -1,6 +1,7 @@
 import {
 	Bot,
 	CircleDotDashed,
+	GitBranch,
 	ShieldUser,
 	Sparkles,
 	Wrench,
@@ -17,6 +18,11 @@ const nodeStyle = {
 		label: "Supervisor",
 		icon: ShieldUser,
 		className: "bg-sky-100 text-sky-900 border-sky-300",
+	},
+	condition: {
+		label: "Condition",
+		icon: GitBranch,
+		className: "bg-violet-100 text-violet-900 border-violet-300",
 	},
 	tool: {
 		label: "Tool",

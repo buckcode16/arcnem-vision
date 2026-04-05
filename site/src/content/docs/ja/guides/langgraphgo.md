@@ -96,6 +96,24 @@ g.AddConditionalEdge("classify", func(ctx context.Context, state ProcessingState
 })
 ```
 
+Arcnem Vision では、この種の単純な分岐をDB上の
+`nodeType="condition"` として保持します。設定は次のような形です。
+
+```json
+{
+  "source_key": "ocr_text",
+  "operator": "contains",
+  "value": "URGENT",
+  "case_sensitive": false,
+  "true_target": "urgent_worker",
+  "false_target": "general_worker"
+}
+```
+
+実行時には `BuildConditionNode` がこの設定をノード関数と
+langgraphgo の `AddConditionalEdge` に変換します。`outputKey` を指定
+していれば、判定結果の true / false も state に残せます。
+
 ---
 
 ## 並列実行
@@ -235,23 +253,27 @@ agent, _ := prebuilt.CreateAgentMap(model, mcpTools, 20)
 このアーキテクチャの特徴は、**エージェントグラフをコードではなくデータベースで定義する** 点です。DBスキーマ（`agent_graphs`、`agent_graph_nodes`、`agent_graph_edges`）がグラフ構造を保持し、実行時に `Snapshot` を読み込んで langgraphgo の `StateGraph` を構築します。
 
 ```go
-func BuildGraph(snapshot *Snapshot, factory NodeFuncFactory) (*StateGraph, error) {
-    g := graphlib.NewStateGraph[map[string]any]()
+func BuildGraph(snapshot *Snapshot, mcpClient *clients.MCPClient) (*graph.StateRunnable[map[string]any], error) {
+    g := graph.NewStateGraph[map[string]any]()
+    schema := graph.NewMapSchema()
+    g.SetSchema(schema)
 
-    for _, snapshotNode := range snapshot.Nodes {
-        nodeFn, err := factory(snapshotNode)
-        g.AddNode(nodeKey, snapshotNode.Node.NodeType, nodeFn)
-    }
+    // Pass 1: worker と tool ノード
+    // Pass 2: supervisor routing ノードと condition ノード
+    // 通常ノードは静的 edge
+    // supervisor / condition は AddConditionalEdge
 
-    g.SetEntryPoint(snapshot.AgentGraph.EntryNode)
-
-    for _, edge := range snapshot.Edges {
-        g.AddEdge(edge.FromNode, edge.ToNode)
-    }
-
-    return g, nil
+    return g.Compile()
 }
 ```
+
+このプロジェクトでの実運用ルール:
+
+- 永続化されるノード種別は `worker` / `tool` / `supervisor` / `condition` の4種類
+- worker には複数ツールを割り当て可能
+- tool ノードはツールを1つだけ持つ
+- supervisor ノードはメンバーworkerへの条件付きルーティングを自動配線
+- condition ノードは `true_target` と `false_target` に対応する2本の管理エッジを必ず持つ
 
 ---
 
@@ -260,13 +282,13 @@ func BuildGraph(snapshot *Snapshot, factory NodeFuncFactory) (*StateGraph, error
 | パターン | 使う場面 | Arcnem Visionでの例 |
 |---------|-------------|----------------------|
 | **Basic StateGraph** | 固定で単純なパイプライン | 説明生成 → 埋め込み → 保存 |
-| **Conditional edges** | コンテンツに応じた分岐 | ドキュメント種別でルーティング |
+| **Conditional edges** | コンテンツに応じた分岐 | OCRテキストを `urgent_worker` と `general_worker` に振り分け |
 | **Parallel execution** | 独立ステップを同時実行 | OCR + キャプション生成 |
 | **Checkpointing** | 長時間実行やクラッシュ耐性が必要 | 多段ドキュメント処理 |
 | **Streaming** | リアルタイム進捗を返したい | 処理ステータスをクライアントへ配信 |
 | **Interrupts** | 人の承認が必要 | 低信頼度分類の確認 |
 | **ReAct agent** | オープンエンドなツール利用 | 「似た画像を探して理由を説明して」 |
-| **Supervisor** | マルチエージェント連携 | 画像処理エージェント + 検索エージェント |
+| **Supervisor** | マルチエージェント連携 | OCRレビューを請求系担当と運用系担当へ振り分け |
 | **Schema-driven (DB)** | デバイスごとにワークフロー可変 | デバイス別グラフ切り替え |
 
 ---
@@ -276,10 +298,12 @@ func BuildGraph(snapshot *Snapshot, factory NodeFuncFactory) (*StateGraph, error
 1. **`map[string]any` は型アサーションが多発する**: 新規グラフでは型付きstateを推奨。
 2. **並列ノードのstateマージ**: schemaやmergerがないと、最後に完了した並列ノードの出力が他を上書きします。
 3. **Conditional edgeは静的edgeを置き換える**: 同じ始点ノードから両方を混在させないでください。
-4. **`graph.END` は文字列 `"END"`**: ノード名に `END` を使わないでください。
-5. **コンパイルは軽量**: 動的構築グラフではリクエストごとにcompileしても問題ありません。
-6. **並列実行時はノード関数をgoroutine-safeにする** 必要があります。
-7. **Inngestのstepとlanggraphgoのnodeは別レイヤー**: リトライ機構を混同しないでください。
+4. **Arcnem Vision の condition ノードは出力エッジを自前で管理します**: ダッシュボード上では `true_target` と `false_target` に対応する2本のエッジが必須です。
+5. **condition の比較対象は文字列のみです**: 現状の実装は、trimした文字列に対する `contains` / `equals` だけをサポートします。
+6. **`graph.END` は文字列 `"END"`**: ノード名に `END` を使わないでください。
+7. **コンパイルは軽量**: 動的構築グラフではリクエストごとにcompileしても問題ありません。
+8. **並列実行時はノード関数をgoroutine-safeにする** 必要があります。
+9. **Inngestのstepとlanggraphgoのnodeは別レイヤー**: リトライ機構を混同しないでください。
 
 ---
 

@@ -96,6 +96,25 @@ g.AddConditionalEdge("classify", func(ctx context.Context, state ProcessingState
 })
 ```
 
+Arcnem Vision persists simple deterministic routing as a first-class
+`nodeType="condition"` in the database and dashboard. A condition node config
+looks like this:
+
+```json
+{
+  "source_key": "ocr_text",
+  "operator": "contains",
+  "value": "URGENT",
+  "case_sensitive": false,
+  "true_target": "urgent_worker",
+  "false_target": "general_worker"
+}
+```
+
+At runtime, `BuildConditionNode` turns that config into a node function plus a
+langgraphgo `AddConditionalEdge`. If the node has an `outputKey`, the boolean
+match result is stored there for later steps.
+
 ---
 
 ## Parallel Execution
@@ -235,23 +254,27 @@ agent, _ := prebuilt.CreateAgentMap(model, mcpTools, 20)
 Our architecture is unique: **agent graphs are defined in the database, not in code**. The DB schema (`agent_graphs`, `agent_graph_nodes`, `agent_graph_edges`) stores the graph structure. At runtime, we load a `Snapshot` and build a langgraphgo `StateGraph` from it.
 
 ```go
-func BuildGraph(snapshot *Snapshot, factory NodeFuncFactory) (*StateGraph, error) {
-    g := graphlib.NewStateGraph[map[string]any]()
+func BuildGraph(snapshot *Snapshot, mcpClient *clients.MCPClient) (*graph.StateRunnable[map[string]any], error) {
+    g := graph.NewStateGraph[map[string]any]()
+    schema := graph.NewMapSchema()
+    g.SetSchema(schema)
 
-    for _, snapshotNode := range snapshot.Nodes {
-        nodeFn, err := factory(snapshotNode)
-        g.AddNode(nodeKey, snapshotNode.Node.NodeType, nodeFn)
-    }
+    // Pass 1: workers and tool nodes
+    // Pass 2: supervisor routing nodes and condition nodes
+    // Static edges for ordinary nodes
+    // AddConditionalEdge for supervisors and conditions
 
-    g.SetEntryPoint(snapshot.AgentGraph.EntryNode)
-
-    for _, edge := range snapshot.Edges {
-        g.AddEdge(edge.FromNode, edge.ToNode)
-    }
-
-    return g, nil
+    return g.Compile()
 }
 ```
+
+Project conventions on top of langgraphgo:
+
+- `worker`, `tool`, `supervisor`, and `condition` are the four persisted node types
+- workers can hold multiple tools
+- tool nodes must hold exactly one tool
+- supervisor nodes auto-wire conditional routing to their members
+- condition nodes own exactly two managed outgoing edges that must match `true_target` and `false_target`
 
 ---
 
@@ -260,13 +283,13 @@ func BuildGraph(snapshot *Snapshot, factory NodeFuncFactory) (*StateGraph, error
 | Pattern | When to use | Arcnem Vision example |
 |---------|-------------|----------------------|
 | **Basic StateGraph** | Fixed, simple pipeline | Describe → embed → store |
-| **Conditional edges** | Branch based on content | Route by document type |
+| **Conditional edges** | Branch based on content | Route OCR text to `urgent_worker` vs `general_worker` |
 | **Parallel execution** | Independent steps | OCR + caption generation |
 | **Checkpointing** | Long-running or crash-sensitive | Multi-step document processing |
 | **Streaming** | Real-time progress updates | Processing status to client |
 | **Interrupts** | Human approval needed | Low-confidence classifications |
 | **ReAct agent** | Open-ended tool use | "Find similar images and explain why" |
-| **Supervisor** | Multi-agent coordination | Image processor + search agent |
+| **Supervisor** | Multi-agent coordination | OCR review supervisor routing to billing vs operations specialists |
 | **Schema-driven (DB)** | Per-device configurable workflows | Different graphs per device |
 
 ---
@@ -276,10 +299,12 @@ func BuildGraph(snapshot *Snapshot, factory NodeFuncFactory) (*StateGraph, error
 1. **`map[string]any` requires type assertions everywhere.** Prefer typed state for new graphs.
 2. **Parallel node state merging.** Without a schema or merger, the last-finishing parallel node's output overwrites everything.
 3. **Conditional edges replace static edges.** Don't mix both from the same source node.
-4. **`graph.END` is the string `"END"`.** Don't name a node "END".
-5. **Compilation is cheap.** You can compile per-request if the graph is built dynamically.
-6. **Node functions must be goroutine-safe** when using parallel execution.
-7. **Inngest steps vs langgraphgo nodes are different layers.** Don't confuse the two retry mechanisms.
+4. **Arcnem Vision condition nodes own their outgoing edges.** The dashboard expects exactly two edges matching `true_target` and `false_target`.
+5. **Condition comparisons are string-only.** Today the runtime supports `contains` and `equals` against trimmed string values.
+6. **`graph.END` is the string `"END"`.** Don't name a node "END".
+7. **Compilation is cheap.** You can compile per-request if the graph is built dynamically.
+8. **Node functions must be goroutine-safe** when using parallel execution.
+9. **Inngest steps vs langgraphgo nodes are different layers.** Don't confuse the two retry mechanisms.
 
 ---
 

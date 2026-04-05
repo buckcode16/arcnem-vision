@@ -5,7 +5,12 @@ const STATE_KEY_PATTERN = /^[a-zA-Z0-9._:-]+$/;
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const WORKFLOW_NODE_TYPES = new Set(["worker", "supervisor", "tool"]);
+const WORKFLOW_NODE_TYPES = new Set([
+	"worker",
+	"supervisor",
+	"condition",
+	"tool",
+]);
 
 type WorkflowNodeInput = {
 	id?: string;
@@ -122,6 +127,28 @@ function validateToolMapping(
 	}
 }
 
+function normalizeConditionTarget(
+	value: unknown,
+	nodeKey: string,
+	label: "true_target" | "false_target",
+): string {
+	if (typeof value !== "string") {
+		throw new Error(
+			`Condition node "${nodeKey}" must set ${label} as a string.`,
+		);
+	}
+	const normalized = value.trim();
+	if (!normalized) {
+		throw new Error(`Condition node "${nodeKey}" must set ${label}.`);
+	}
+	if (normalized !== "END" && !NODE_KEY_PATTERN.test(normalized)) {
+		throw new Error(
+			`Condition node "${nodeKey}" has invalid ${label} "${normalized}".`,
+		);
+	}
+	return normalized;
+}
+
 export function normalizeWorkflowFields(input: {
 	name: string;
 	description?: string | null;
@@ -230,7 +257,7 @@ export function normalizeGraphData(input: {
 		const nodeType = node.nodeType.trim().toLowerCase();
 		if (!WORKFLOW_NODE_TYPES.has(nodeType)) {
 			throw new Error(
-				`Node "${nodeKey}" has unsupported type "${node.nodeType}". Use worker, supervisor, or tool.`,
+				`Node "${nodeKey}" has unsupported type "${node.nodeType}". Use worker, supervisor, condition, or tool.`,
 			);
 		}
 
@@ -327,6 +354,69 @@ export function normalizeGraphData(input: {
 				config.members = normalizedMembers;
 				break;
 			}
+			case "condition": {
+				if (modelId) {
+					throw new Error(`Condition node "${nodeKey}" cannot set a model.`);
+				}
+				if (toolIds.length > 0) {
+					throw new Error(
+						`Condition node "${nodeKey}" cannot have attached tools.`,
+					);
+				}
+				const sourceKey = config.source_key;
+				if (typeof sourceKey !== "string" || sourceKey.trim().length === 0) {
+					throw new Error(
+						`Condition node "${nodeKey}" must define config.source_key.`,
+					);
+				}
+				if (!STATE_KEY_PATTERN.test(sourceKey.trim())) {
+					throw new Error(
+						`Condition node "${nodeKey}" has invalid source_key.`,
+					);
+				}
+				const operator = String(config.operator ?? "")
+					.trim()
+					.toLowerCase();
+				if (operator !== "contains" && operator !== "equals") {
+					throw new Error(
+						`Condition node "${nodeKey}" operator must be contains or equals.`,
+					);
+				}
+				if (typeof config.value !== "string") {
+					throw new Error(
+						`Condition node "${nodeKey}" must set config.value as a string.`,
+					);
+				}
+				if (
+					config.case_sensitive != null &&
+					typeof config.case_sensitive !== "boolean"
+				) {
+					throw new Error(
+						`Condition node "${nodeKey}" must set case_sensitive as a boolean when provided.`,
+					);
+				}
+				const trueTarget = normalizeConditionTarget(
+					config.true_target,
+					nodeKey,
+					"true_target",
+				);
+				const falseTarget = normalizeConditionTarget(
+					config.false_target,
+					nodeKey,
+					"false_target",
+				);
+				if (trueTarget === falseTarget) {
+					throw new Error(
+						`Condition node "${nodeKey}" true_target and false_target must be different.`,
+					);
+				}
+				config.source_key = sourceKey.trim();
+				config.operator = operator;
+				config.case_sensitive = Boolean(config.case_sensitive);
+				config.true_target = trueTarget;
+				config.false_target = falseTarget;
+				break;
+			}
 			case "tool": {
 				if (toolIds.length !== 1) {
 					throw new Error(
@@ -374,20 +464,33 @@ export function normalizeGraphData(input: {
 		normalizedNodes.map((node) => [node.nodeKey, node.nodeType]),
 	);
 	for (const node of normalizedNodes) {
-		if (node.nodeType !== "supervisor") continue;
-		const members = node.config.members as unknown[];
-		for (const member of members) {
-			const memberKey = String(member).trim();
-			const memberType = nodeTypeByKey.get(memberKey);
-			if (!memberType) {
-				throw new Error(
-					`Supervisor node "${node.nodeKey}" references unknown member "${memberKey}".`,
-				);
+		if (node.nodeType === "supervisor") {
+			const members = node.config.members as unknown[];
+			for (const member of members) {
+				const memberKey = String(member).trim();
+				const memberType = nodeTypeByKey.get(memberKey);
+				if (!memberType) {
+					throw new Error(
+						`Supervisor node "${node.nodeKey}" references unknown member "${memberKey}".`,
+					);
+				}
+				if (memberType !== "worker") {
+					throw new Error(
+						`Supervisor node "${node.nodeKey}" member "${memberKey}" must be a worker node.`,
+					);
+				}
 			}
-			if (memberType !== "worker") {
-				throw new Error(
-					`Supervisor node "${node.nodeKey}" member "${memberKey}" must be a worker node.`,
-				);
+		}
+
+		if (node.nodeType === "condition") {
+			for (const key of ["true_target", "false_target"] as const) {
+				const target = String(node.config[key] ?? "").trim();
+				if (target === "END") continue;
+				if (!nodeTypeByKey.has(target)) {
+					throw new Error(
+						`Condition node "${node.nodeKey}" references unknown ${key} "${target}".`,
+					);
+				}
 			}
 		}
 	}
@@ -419,6 +522,31 @@ export function normalizeGraphData(input: {
 			throw new Error(`Duplicate edge detected: ${edgeKey}.`);
 		}
 		edgeKeys.add(edgeKey);
+	}
+
+	for (const node of normalizedNodes) {
+		if (node.nodeType !== "condition") continue;
+		const expectedTargets = new Set([
+			String(node.config.true_target).trim(),
+			String(node.config.false_target).trim(),
+		]);
+		const actualTargets = new Set(
+			normalizedEdges
+				.filter((edge) => edge.fromNode === node.nodeKey)
+				.map((edge) => edge.toNode),
+		);
+		if (actualTargets.size !== expectedTargets.size) {
+			throw new Error(
+				`Condition node "${node.nodeKey}" must have edges for both condition targets.`,
+			);
+		}
+		for (const target of expectedTargets) {
+			if (!actualTargets.has(target)) {
+				throw new Error(
+					`Condition node "${node.nodeKey}" is missing an edge to "${target}".`,
+				);
+			}
+		}
 	}
 
 	if (!normalizedEdges.some((edge) => edge.toNode === "END")) {

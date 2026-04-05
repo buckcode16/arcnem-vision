@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import type {
 	DocumentItem,
+	DocumentOCRResultsResponse,
 	DocumentSegmentationsResponse,
 	DocumentsResponse,
 } from "@/features/documents/types";
@@ -44,7 +45,7 @@ export const getDocuments = createServerFn({ method: "GET" })
 			);
 		}
 
-		return response.json();
+		return (await response.json()) as DocumentsResponse;
 	});
 
 export const getDocumentSegmentations = createServerFn({ method: "GET" })
@@ -69,7 +70,32 @@ export const getDocumentSegmentations = createServerFn({ method: "GET" })
 			);
 		}
 
-		return response.json();
+		return (await response.json()) as DocumentSegmentationsResponse;
+	});
+
+export const getDocumentOCRResults = createServerFn({ method: "GET" })
+	.inputValidator((input: { documentId: string }) => input)
+	.handler(async ({ data }): Promise<DocumentOCRResultsResponse> => {
+		const sessionToken = getCookie("better-auth.session_token");
+		const headers: Record<string, string> = {
+			"Content-Type": "application/json",
+		};
+		if (sessionToken) {
+			headers.Cookie = `better-auth.session_token=${sessionToken}`;
+		}
+
+		const response = await fetch(
+			`${API_URL}/api/dashboard/documents/${encodeURIComponent(data.documentId)}/ocr`,
+			{ headers },
+		);
+
+		if (!response.ok) {
+			throw new Error(
+				`Failed to fetch OCR results: ${response.status} ${response.statusText}`,
+			);
+		}
+
+		return (await response.json()) as DocumentOCRResultsResponse;
 	});
 
 export const getDocument = createServerFn({ method: "GET" })
@@ -94,5 +120,5 @@ export const getDocument = createServerFn({ method: "GET" })
 			);
 		}
 
-		return response.json();
+		return (await response.json()) as DocumentItem;
 	});

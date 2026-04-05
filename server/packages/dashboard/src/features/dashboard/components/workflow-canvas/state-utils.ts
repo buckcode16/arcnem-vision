@@ -19,6 +19,10 @@ function asStringArray(value: unknown) {
 		.filter((item) => item.length > 0);
 }
 
+function isConditionTarget(value: string) {
+	return value === "END" || KEY_PATTERN.test(value);
+}
+
 export function validateCanvasGraph({
 	nodes,
 	entryNode,
@@ -53,8 +57,10 @@ export function validateCanvasGraph({
 		seenNodeKeys.add(normalized);
 		nodeTypeByKey.set(normalized, node.nodeType);
 
-		if (!["worker", "supervisor", "tool"].includes(node.nodeType)) {
-			return `Node ${normalized} must be worker, supervisor, or tool.`;
+		if (
+			!["worker", "supervisor", "condition", "tool"].includes(node.nodeType)
+		) {
+			return `Node ${normalized} must be worker, supervisor, condition, or tool.`;
 		}
 
 		for (const stateKey of [node.inputKey, node.outputKey]) {
@@ -107,6 +113,52 @@ export function validateCanvasGraph({
 			}
 		}
 
+		if (node.nodeType === "condition") {
+			if (node.modelId) {
+				return `Condition node ${normalized} cannot set a model.`;
+			}
+			if (node.toolIds.length > 0) {
+				return `Condition node ${normalized} cannot have tools assigned.`;
+			}
+			if (
+				typeof config.source_key !== "string" ||
+				!KEY_PATTERN.test(config.source_key.trim())
+			) {
+				return `Condition node ${normalized} needs a valid source_key.`;
+			}
+			const operator =
+				typeof config.operator === "string"
+					? config.operator.trim().toLowerCase()
+					: "";
+			if (!["contains", "equals"].includes(operator)) {
+				return `Condition node ${normalized} operator must be contains or equals.`;
+			}
+			if (typeof config.value !== "string") {
+				return `Condition node ${normalized} must compare against a string value.`;
+			}
+			if (
+				config.case_sensitive != null &&
+				typeof config.case_sensitive !== "boolean"
+			) {
+				return `Condition node ${normalized} case_sensitive must be a boolean.`;
+			}
+			const trueTarget =
+				typeof config.true_target === "string" ? config.true_target.trim() : "";
+			const falseTarget =
+				typeof config.false_target === "string"
+					? config.false_target.trim()
+					: "";
+			if (!trueTarget || !isConditionTarget(trueTarget)) {
+				return `Condition node ${normalized} needs a valid true_target.`;
+			}
+			if (!falseTarget || !isConditionTarget(falseTarget)) {
+				return `Condition node ${normalized} needs a valid false_target.`;
+			}
+			if (trueTarget === falseTarget) {
+				return `Condition node ${normalized} must branch to two different targets.`;
+			}
+		}
+
 		if (node.nodeType === "tool") {
 			if (node.modelId) {
 				return `Tool node ${normalized} cannot set a model.`;
@@ -153,15 +205,28 @@ export function validateCanvasGraph({
 	}
 
 	for (const node of nodes) {
-		if (node.nodeType !== "supervisor") continue;
-		const config = isRecord(node.config) ? node.config : {};
-		const members = asStringArray(config.members);
-		for (const member of members) {
-			if (!seenNodeKeys.has(member)) {
-				return `Supervisor ${node.nodeKey} references unknown member ${member}.`;
+		if (node.nodeType === "supervisor") {
+			const config = isRecord(node.config) ? node.config : {};
+			const members = asStringArray(config.members);
+			for (const member of members) {
+				if (!seenNodeKeys.has(member)) {
+					return `Supervisor ${node.nodeKey} references unknown member ${member}.`;
+				}
+				if (nodeTypeByKey.get(member) !== "worker") {
+					return `Supervisor ${node.nodeKey} member ${member} must be a worker.`;
+				}
 			}
-			if (nodeTypeByKey.get(member) !== "worker") {
-				return `Supervisor ${node.nodeKey} member ${member} must be a worker.`;
+		}
+
+		if (node.nodeType === "condition") {
+			const config = isRecord(node.config) ? node.config : {};
+			for (const key of ["true_target", "false_target"] as const) {
+				const target =
+					typeof config[key] === "string" ? config[key].trim() : "";
+				if (target === "END") continue;
+				if (!seenNodeKeys.has(target)) {
+					return `Condition ${node.nodeKey} references unknown ${key} ${target}.`;
+				}
 			}
 		}
 	}
@@ -182,6 +247,28 @@ export function validateCanvasGraph({
 			return `Duplicate edge: ${edgeKey}.`;
 		}
 		seenEdges.add(edgeKey);
+	}
+
+	for (const node of nodes) {
+		if (node.nodeType !== "condition") continue;
+		const config = isRecord(node.config) ? node.config : {};
+		const expectedTargets = new Set([
+			String(config.true_target ?? "").trim(),
+			String(config.false_target ?? "").trim(),
+		]);
+		const actualTargets = new Set(
+			edges
+				.filter((edge) => edge.fromNode === node.nodeKey)
+				.map((edge) => edge.toNode),
+		);
+		if (expectedTargets.size !== 2 || actualTargets.size !== 2) {
+			return `Condition node ${node.nodeKey} must have exactly two managed edges.`;
+		}
+		for (const target of expectedTargets) {
+			if (!actualTargets.has(target)) {
+				return `Condition node ${node.nodeKey} is missing an edge to ${target}.`;
+			}
+		}
 	}
 
 	if (!edges.some((edge) => edge.toNode === "END")) {

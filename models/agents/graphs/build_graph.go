@@ -10,6 +10,12 @@ import (
 	"github.com/smallnest/langgraphgo/graph"
 )
 
+type modelClientFactory func(provider string, modelName string, modelVersion string) (any, error)
+
+func defaultModelClientFactory(provider string, modelName string, _ string) (any, error) {
+	return clients.NewModelClient(provider, modelName)
+}
+
 func validateSnapshot(snapshot *Snapshot) error {
 	if snapshot == nil {
 		return errors.New("graph snapshot is nil")
@@ -87,25 +93,39 @@ func validateSnapshot(snapshot *Snapshot) error {
 		adjacency[fromNode] = next
 	}
 
-	// Synthesize supervisor edges into the adjacency map for reachability checks.
-	// Supervisor nodes auto-wire: supervisor -> each member, each member -> supervisor, supervisor -> END.
+	// Synthesize supervisor and condition edges into the adjacency map for
+	// reachability checks. Supervisor nodes auto-wire: supervisor -> each member,
+	// each member -> supervisor, supervisor -> END. Condition nodes auto-wire:
+	// condition -> true_target and condition -> false_target.
 	for _, snapshotNode := range snapshot.Nodes {
 		nodeType := strings.ToLower(strings.TrimSpace(snapshotNode.Node.NodeType))
-		if nodeType != "supervisor" {
-			continue
+		switch nodeType {
+		case "supervisor":
+			cfg, err := parseSupervisorConfig(snapshotNode)
+			if err != nil {
+				continue // Config validation happens later in BuildGraph.
+			}
+			supKey := snapshotNode.Node.NodeKey
+			for _, member := range cfg.Members {
+				adjacency[supKey] = append(adjacency[supKey], member)
+				adjacency[member] = append(adjacency[member], supKey)
+			}
+			if cfg.FinishTarget != "" {
+				adjacency[supKey] = append(adjacency[supKey], cfg.FinishTarget)
+			} else {
+				adjacency[supKey] = append(adjacency[supKey], "END")
+			}
+		case "condition":
+			cfg, err := parseConditionConfig(snapshotNode)
+			if err != nil {
+				continue // Config validation happens later in BuildGraph.
+			}
+			adjacency[snapshotNode.Node.NodeKey] = append(
+				adjacency[snapshotNode.Node.NodeKey],
+				cfg.TrueTarget,
+				cfg.FalseTarget,
+			)
 		}
-		var cfg struct {
-			Members []string `json:"members"`
-		}
-		if err := json.Unmarshal([]byte(snapshotNode.Node.Config), &cfg); err != nil {
-			continue // Config validation happens later in BuildGraph.
-		}
-		supKey := snapshotNode.Node.NodeKey
-		for _, member := range cfg.Members {
-			adjacency[supKey] = append(adjacency[supKey], member)
-			adjacency[member] = append(adjacency[member], supKey)
-		}
-		adjacency[supKey] = append(adjacency[supKey], "END")
 	}
 
 	// Ensure the configured entry point can reach END.
@@ -142,8 +162,19 @@ func validateSnapshot(snapshot *Snapshot) error {
 }
 
 func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*graph.StateRunnable[map[string]any], error) {
+	return buildGraphWithModelFactory(agentGraphSnapshot, mcpClient, defaultModelClientFactory)
+}
+
+func buildGraphWithModelFactory(
+	agentGraphSnapshot *Snapshot,
+	mcpClient *clients.MCPClient,
+	newModelClient modelClientFactory,
+) (*graph.StateRunnable[map[string]any], error) {
 	if err := validateSnapshot(agentGraphSnapshot); err != nil {
 		return nil, fmt.Errorf("invalid graph snapshot: %w", err)
+	}
+	if newModelClient == nil {
+		return nil, errors.New("model client factory is nil")
 	}
 
 	g := graph.NewStateGraph[map[string]any]()
@@ -178,24 +209,52 @@ func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*gr
 		snapshotNode *SnapshotNode
 		result       *SupervisorRoutingResult
 	}
+	type conditionInfo struct {
+		snapshotNode *SnapshotNode
+		result       *ConditionRoutingResult
+	}
 	supervisors := make(map[string]*supervisorInfo)
+	conditions := make(map[string]*conditionInfo)
 	supervisorMembers := make(map[string]string) // member key -> supervisor key
+	nodeKeys := make(map[string]struct{}, len(agentGraphSnapshot.Nodes))
+	for _, node := range agentGraphSnapshot.Nodes {
+		nodeKeys[node.Node.NodeKey] = struct{}{}
+	}
 
 	for _, node := range agentGraphSnapshot.Nodes {
 		nodeType := strings.ToLower(strings.TrimSpace(node.Node.NodeType))
-		if nodeType != "supervisor" {
-			continue
-		}
-		cfg, err := parseSupervisorConfig(node)
-		if err != nil {
-			return nil, err
-		}
-		supervisors[node.Node.NodeKey] = &supervisorInfo{snapshotNode: node}
-		for _, member := range cfg.Members {
-			if existingSupervisor, exists := supervisorMembers[member]; exists {
-				return nil, fmt.Errorf("worker %q is a member of multiple supervisors: %q and %q", member, existingSupervisor, node.Node.NodeKey)
+		switch nodeType {
+		case "supervisor":
+			cfg, err := parseSupervisorConfig(node)
+			if err != nil {
+				return nil, err
 			}
-			supervisorMembers[member] = node.Node.NodeKey
+			if cfg.FinishTarget != "" {
+				if _, exists := nodeKeys[cfg.FinishTarget]; !exists {
+					return nil, fmt.Errorf("supervisor node %q references unknown finish target %q", node.Node.NodeKey, cfg.FinishTarget)
+				}
+			}
+			supervisors[node.Node.NodeKey] = &supervisorInfo{snapshotNode: node}
+			for _, member := range cfg.Members {
+				if existingSupervisor, exists := supervisorMembers[member]; exists {
+					return nil, fmt.Errorf("worker %q is a member of multiple supervisors: %q and %q", member, existingSupervisor, node.Node.NodeKey)
+				}
+				supervisorMembers[member] = node.Node.NodeKey
+			}
+		case "condition":
+			cfg, err := parseConditionConfig(node)
+			if err != nil {
+				return nil, err
+			}
+			for _, target := range []string{cfg.TrueTarget, cfg.FalseTarget} {
+				if target == "END" {
+					continue
+				}
+				if _, exists := nodeKeys[target]; !exists {
+					return nil, fmt.Errorf("condition node %q references unknown target %q", node.Node.NodeKey, target)
+				}
+			}
+			conditions[node.Node.NodeKey] = &conditionInfo{snapshotNode: node}
 		}
 	}
 
@@ -216,20 +275,24 @@ func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*gr
 		if _, ok := modelClients[key]; ok {
 			continue
 		}
-		client, err := clients.NewModelClient(node.Model.Provider, node.Model.Name)
+		client, err := newModelClient(
+			node.Model.Provider,
+			node.Model.Name,
+			node.Model.Version,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create model client for %s: %w", key, err)
 		}
 		modelClients[key] = client
 	}
 
-	// Two-pass build: workers and tool nodes first, then supervisors.
+	// Two-pass build: workers/tool nodes first, then supervisors and conditions.
 	builtNodes := make(map[string]*NodeToAdd)
 
 	// Pass 1: build worker and tool nodes.
 	for _, node := range agentGraphSnapshot.Nodes {
 		nodeType := strings.ToLower(strings.TrimSpace(node.Node.NodeType))
-		if nodeType == "supervisor" {
+		if nodeType == "supervisor" || nodeType == "condition" {
 			continue
 		}
 
@@ -255,25 +318,31 @@ func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*gr
 		}
 	}
 
-	// Pass 2: build supervisor routing nodes.
+	// Pass 2: build supervisor routing nodes and deterministic condition nodes.
 	for _, node := range agentGraphSnapshot.Nodes {
 		nodeType := strings.ToLower(strings.TrimSpace(node.Node.NodeType))
-		if nodeType != "supervisor" {
-			continue
-		}
+		switch nodeType {
+		case "supervisor":
+			var modelClient any
+			if node.Model != nil {
+				key := fmt.Sprintf("%s:%s:%s", node.Model.Provider, node.Model.Name, node.Model.Version)
+				modelClient = modelClients[key]
+			}
 
-		var modelClient any
-		if node.Model != nil {
-			key := fmt.Sprintf("%s:%s:%s", node.Model.Provider, node.Model.Name, node.Model.Version)
-			modelClient = modelClients[key]
+			result, err := BuildSupervisorRoutingNode(node, modelClient)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build supervisor %q: %w", node.Node.NodeKey, err)
+			}
+			builtNodes[node.Node.NodeKey] = result.RoutingNode
+			supervisors[node.Node.NodeKey].result = result
+		case "condition":
+			result, err := BuildConditionNode(node)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build condition node %q: %w", node.Node.NodeKey, err)
+			}
+			builtNodes[node.Node.NodeKey] = result.Node
+			conditions[node.Node.NodeKey].result = result
 		}
-
-		result, err := BuildSupervisorRoutingNode(node, modelClient)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build supervisor %q: %w", node.Node.NodeKey, err)
-		}
-		builtNodes[node.Node.NodeKey] = result.RoutingNode
-		supervisors[node.Node.NodeKey].result = result
 	}
 
 	// Add all nodes to the graph, with timeouts for supervisor participants.
@@ -299,11 +368,18 @@ func BuildGraph(agentGraphSnapshot *Snapshot, mcpClient *clients.MCPClient) (*gr
 			g.AddEdge(member, supKey)
 		}
 	}
+	for key, info := range conditions {
+		g.AddConditionalEdge(key, info.result.ConditionalEdgeFn)
+	}
 
-	// Wire non-supervisor DB edges as static edges. Skip edges from supervisor nodes
-	// (their routing is handled by conditional edges above).
+	// Wire non-supervisor/non-condition DB edges as static edges. Skip edges from
+	// supervisor and condition nodes because their routing is handled by
+	// conditional edges above.
 	for _, edge := range agentGraphSnapshot.Edges {
 		if _, isSupervisor := supervisors[edge.FromNode]; isSupervisor {
+			continue
+		}
+		if _, isCondition := conditions[edge.FromNode]; isCondition {
 			continue
 		}
 		if edge.ToNode == "END" {
