@@ -1,6 +1,6 @@
 ---
 title: Dashboard Operations
-description: Manage projects, devices, API keys, uploads, workflows, and live runs from the dashboard.
+description: Manage projects, devices, API keys, uploads, chat, workflows, and live runs from the dashboard.
 ---
 
 The dashboard (`server/packages/dashboard`) is the operator control room for Arcnem Vision. It covers configuration, ad-hoc uploads, and live run inspection without redeploying code.
@@ -11,7 +11,7 @@ The dashboard (`server/packages/dashboard`) is the operator control room for Arc
 
 - **Projects & Devices**: create projects, register devices, assign default workflows, and issue or rotate device API keys.
 - **Workflow Library**: create/edit graph workflows.
-- **Docs**: browse seeded or live uploads, upload directly from the dashboard, inspect related OCR and segmentation outputs, and queue workflows against any document.
+- **Docs**: browse seeded or live uploads, run semantic search, ask grounded questions across the collection, upload directly from the dashboard, inspect related OCR and segmentation outputs, and queue workflows against any document.
 - **Runs**: monitor execution history with live updates as runs start, advance, and finish.
 
 ## Projects, devices, and API keys
@@ -78,13 +78,18 @@ Before save, the canvas enforces unique node keys, model requirements, one tool 
 
 Segmentation flows are ordinary workflows. The difference is the tool they call: versioned segmentation models are registered in the database and invoked through MCP. OCR flows work the same way, except the tool is `create_document_ocr` and the result stays attached to the source document as persisted text plus metadata.
 
-## Docs: search, upload, OCR, and segmented results
+## Docs: search, chat, upload, OCR, and segmented results
 
 ![Docs tab with newer seeded images](/dashboard-docs.png)
 
 - Search by meaning uses semantic ranking first and falls back to lexical matching if there is no embedding seed.
+- **Ask The Collection** opens an org-scoped drawer that answers using document descriptions, OCR text, and related segmentation context.
+- Source cards show which document grounded the answer, including project and device badges when available.
+- **New chat** clears the current ephemeral session without changing the document library.
 - **Add From Dashboard** uploads a one-off image into a project without binding it to a device.
 - Click any document to choose a different workflow and queue it without changing the source device's saved assignment.
+
+![Docs tab with collection chat open and grounded sources](/dashboard-docs-chat.png)
 
 ![Selected document with a related segmented result](/dashboard-docs-segmentation-detail.png)
 

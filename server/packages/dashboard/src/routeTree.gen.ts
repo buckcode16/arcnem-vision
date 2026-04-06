@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiRealtimeDashboardRouteImport } from './routes/api/realtime/dashboard'
+import { Route as ApiDocumentsChatRouteImport } from './routes/api/documents/chat'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,30 +23,39 @@ const ApiRealtimeDashboardRoute = ApiRealtimeDashboardRouteImport.update({
   path: '/api/realtime/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDocumentsChatRoute = ApiDocumentsChatRouteImport.update({
+  id: '/api/documents/chat',
+  path: '/api/documents/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/documents/chat': typeof ApiDocumentsChatRoute
   '/api/realtime/dashboard': typeof ApiRealtimeDashboardRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/documents/chat': typeof ApiDocumentsChatRoute
   '/api/realtime/dashboard': typeof ApiRealtimeDashboardRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/documents/chat': typeof ApiDocumentsChatRoute
   '/api/realtime/dashboard': typeof ApiRealtimeDashboardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/realtime/dashboard'
+  fullPaths: '/' | '/api/documents/chat' | '/api/realtime/dashboard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/realtime/dashboard'
-  id: '__root__' | '/' | '/api/realtime/dashboard'
+  to: '/' | '/api/documents/chat' | '/api/realtime/dashboard'
+  id: '__root__' | '/' | '/api/documents/chat' | '/api/realtime/dashboard'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiDocumentsChatRoute: typeof ApiDocumentsChatRoute
   ApiRealtimeDashboardRoute: typeof ApiRealtimeDashboardRoute
 }
 
@@ -65,11 +75,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRealtimeDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/documents/chat': {
+      id: '/api/documents/chat'
+      path: '/api/documents/chat'
+      fullPath: '/api/documents/chat'
+      preLoaderRoute: typeof ApiDocumentsChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiDocumentsChatRoute: ApiDocumentsChatRoute,
   ApiRealtimeDashboardRoute: ApiRealtimeDashboardRoute,
 }
 export const routeTree = rootRouteImport

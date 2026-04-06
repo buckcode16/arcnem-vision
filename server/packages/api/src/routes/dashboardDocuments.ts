@@ -3,8 +3,9 @@ import {
 	createDashboardRealtimeEvent,
 	DASHBOARD_REALTIME_REASON,
 } from "@arcnem-vision/shared";
-import { and, desc, eq, ilike, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { Hono, type Context as HonoContext } from "hono";
+import { getApiMcpClient } from "@/clients/apiMcpClient";
 import { getS3Client } from "@/clients/s3";
 import {
 	ALLOWED_IMAGE_MIME_TYPES,
@@ -61,6 +62,17 @@ type DocumentOCRRow = {
 	text: string;
 	avgConfidence: number | string | null;
 	result: unknown;
+};
+
+type DashboardDocumentSearchMatch = {
+	documentId: string;
+	objectKey: string;
+	contentType: string;
+	sizeBytes: number;
+	createdAt: string;
+	projectId: string;
+	deviceId: string | null;
+	snippet: string;
 };
 
 const topLevelDocumentCondition = sql`NOT EXISTS (
@@ -145,6 +157,98 @@ function toOCRResultItem(row: DocumentOCRRow) {
 		avgConfidence: row.avgConfidence == null ? null : Number(row.avgConfidence),
 		result: row.result,
 	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function parseDashboardDocumentSearchMatches(
+	payload: unknown,
+): DashboardDocumentSearchMatch[] {
+	if (!isRecord(payload) || !Array.isArray(payload.matches)) {
+		throw new Error(
+			"MCP search_documents_in_scope returned an invalid payload.",
+		);
+	}
+
+	return payload.matches.map((match, index) => {
+		if (
+			!isRecord(match) ||
+			typeof match.documentId !== "string" ||
+			typeof match.objectKey !== "string" ||
+			typeof match.contentType !== "string" ||
+			typeof match.createdAt !== "string" ||
+			typeof match.projectId !== "string" ||
+			typeof match.snippet !== "string"
+		) {
+			throw new Error(
+				`MCP search_documents_in_scope returned an invalid match at index ${index}.`,
+			);
+		}
+
+		const sizeBytes =
+			typeof match.sizeBytes === "number"
+				? match.sizeBytes
+				: typeof match.sizeBytes === "string"
+					? Number(match.sizeBytes)
+					: Number.NaN;
+		if (!Number.isFinite(sizeBytes)) {
+			throw new Error(
+				`MCP search_documents_in_scope returned an invalid sizeBytes at index ${index}.`,
+			);
+		}
+
+		const deviceId = typeof match.deviceId === "string" ? match.deviceId : null;
+
+		return {
+			documentId: match.documentId,
+			objectKey: match.objectKey,
+			contentType: match.contentType,
+			sizeBytes,
+			createdAt: match.createdAt,
+			projectId: match.projectId,
+			deviceId,
+			snippet: match.snippet,
+		};
+	});
+}
+
+function mapDashboardSearchMatchToRow(
+	match: DashboardDocumentSearchMatch,
+): DocumentRow {
+	return {
+		id: match.documentId,
+		objectKey: match.objectKey,
+		contentType: match.contentType,
+		sizeBytes: match.sizeBytes,
+		createdAt: match.createdAt,
+		description: match.snippet,
+		distance: null,
+		projectId: match.projectId,
+		deviceId: match.deviceId,
+	};
+}
+
+async function searchDashboardDocumentsByMeaning(
+	organizationId: string,
+	query: string,
+	limit: number,
+) {
+	const response = await getApiMcpClient().callTool<unknown>(
+		"search_documents_in_scope",
+		{
+			query,
+			limit,
+			scope: {
+				organization_id: organizationId,
+			},
+		},
+	);
+
+	return parseDashboardDocumentSearchMatches(response).map(
+		mapDashboardSearchMatchToRow,
+	);
 }
 
 async function findDashboardDocumentById(
@@ -804,104 +908,12 @@ dashboardDocumentsRouter.get(
 				);
 			}
 
-			const pattern = `%${query}%`;
-			const seedRows = await dbClient.execute(sql`
-				SELECT dd.id AS "descriptionId"
-				FROM document_descriptions dd
-				INNER JOIN document_description_embeddings dde
-					ON dde.document_description_id = dd.id
-				INNER JOIN documents d
-					ON d.id = dd.document_id
-				WHERE d.organization_id = ${organizationId}
-					AND dd.text ILIKE ${pattern}
-				ORDER BY d.created_at DESC
-				LIMIT 1
-			`);
-
-			const seedDescriptionId =
-				(seedRows.rows[0] as { descriptionId?: string } | undefined)
-					?.descriptionId ?? null;
-
-			if (seedDescriptionId) {
-				const semanticRows = await dbClient.execute(sql`
-					WITH ranked AS (
-						SELECT DISTINCT ON (d.id)
-							d.id,
-							d.object_key AS "objectKey",
-							d.content_type AS "contentType",
-							d.size_bytes AS "sizeBytes",
-							d.created_at AS "createdAt",
-							dd_target.text AS description,
-							d.project_id AS "projectId",
-							d.device_id AS "deviceId",
-							(dde_target.embedding <=> dde_seed.embedding) AS distance
-						FROM document_description_embeddings dde_seed
-						INNER JOIN document_descriptions dd_seed
-							ON dd_seed.id = dde_seed.document_description_id
-						INNER JOIN document_description_embeddings dde_target
-							ON dde_target.embedding_dim = dde_seed.embedding_dim
-						INNER JOIN document_descriptions dd_target
-							ON dd_target.id = dde_target.document_description_id
-						INNER JOIN documents d
-							ON d.id = dd_target.document_id
-						WHERE dd_seed.id = ${seedDescriptionId}
-							AND d.organization_id = ${organizationId}
-							AND NOT EXISTS (
-								SELECT 1
-								FROM document_segmentations ds_hidden
-								WHERE ds_hidden.segmented_document_id = d.id
-							)
-						ORDER BY d.id, distance ASC
-					)
-					SELECT *
-					FROM ranked
-					ORDER BY distance ASC, "createdAt" DESC
-					LIMIT ${limit}
-				`);
-
-				const docs = semanticRows.rows.map((row) => {
-					const data = row as DocumentRow;
-					return toDocumentItem(data);
-				});
-
-				return c.json({ documents: docs, nextCursor: null });
-			}
-
-			const lexicalRows = await dbClient
-				.select({
-					id: documents.id,
-					objectKey: documents.objectKey,
-					contentType: documents.contentType,
-					sizeBytes: documents.sizeBytes,
-					createdAt: documents.createdAt,
-					description: documentDescriptions.text,
-					projectId: documents.projectId,
-					deviceId: documents.deviceId,
-				})
-				.from(documents)
-				.leftJoin(
-					documentDescriptions,
-					eq(documents.id, documentDescriptions.documentId),
-				)
-				.where(
-					and(
-						eq(documents.organizationId, organizationId),
-						topLevelDocumentCondition,
-						or(
-							ilike(documentDescriptions.text, pattern),
-							ilike(documents.objectKey, pattern),
-						),
-					),
-				)
-				.orderBy(desc(documents.id))
-				.limit(limit);
-
-			const docs = lexicalRows.map((row) =>
-				toDocumentItem({
-					...row,
-					distance: null,
-				}),
+			const searchRows = await searchDashboardDocumentsByMeaning(
+				organizationId,
+				query,
+				limit,
 			);
+			const docs = searchRows.map((row) => toDocumentItem(row));
 
 			return c.json({ documents: docs, nextCursor: null });
 		}

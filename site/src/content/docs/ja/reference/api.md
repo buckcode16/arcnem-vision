@@ -84,6 +84,20 @@ POST /api/dashboard/documents/:id/run
   - `status`: 常に`queued`
   - `documentId`, `workflowId`, `workflowName`
 
+Docsタブのコレクションチャットは次のエンドポイントを使います。
+
+```http
+POST /api/documents/chat
+```
+
+ポイント:
+
+- ダッシュボード認証はセッションベースで、アクティブな組織コンテキストに解決できる必要があります
+- リクエストボディは TanStack AI のチャット形式に沿っており、`messages` に加えて `conversationId` と `scope` を任意で渡せます
+- `scope` は認証済み組織の内側でなければなりません。現状のUIは組織単位で送信し、API側では必要に応じて `projectIds`、`deviceIds`、`documentIds` も受け取れます
+- レスポンスは Server-Sent Events でストリーミングされます
+- 根拠表示用の出典カードは `assistant_sources` カスタムイベントとして届き、`documentId`、`projectName`、任意の `deviceName`、`label`、`excerpt`、`matchReason` を含みます
+
 ## ダッシュボードのリアルタイムフィード
 
 ```http

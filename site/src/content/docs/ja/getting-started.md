@@ -28,6 +28,7 @@ cd arcnem-vision
 ```bash
 cp server/packages/api/.env.example server/packages/api/.env
 cp server/packages/db/.env.example  server/packages/db/.env
+cp server/packages/dashboard/.env.example server/packages/dashboard/.env
 cp models/agents/.env.example       models/agents/.env
 cp models/mcp/.env.example          models/mcp/.env
 cp client/.env.example              client/.env
@@ -36,6 +37,7 @@ cp client/.env.example              client/.env
 外部サービスで必要なのはAPIキー2つだけ：
 
 - **[OpenAI APIキー](https://platform.openai.com/api-keys)** → `models/agents/.env`に`OPENAI_API_KEY`
+- **同じOpenAIキーを再利用する場合** → Docsタブのコレクションチャットも動かすなら、`server/packages/dashboard/.env` にも `OPENAI_API_KEY` を入れておくとそのまま試せます
 - **[Replicate APIトークン](https://replicate.com/account/api-tokens)** → `models/mcp/.env`に`REPLICATE_API_TOKEN`
 
 それ以外はすべてローカル開発用に設定済み。データベース、S3、Redisは`docker-compose.yaml`のDockerで起動され、`.env.example`のデフォルト値がそのまま使えます。

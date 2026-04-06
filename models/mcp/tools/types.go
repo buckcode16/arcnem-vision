@@ -79,3 +79,89 @@ type SimilarMatch struct {
 	ID       string  `json:"id"`
 	Distance float64 `json:"distance"`
 }
+
+type ChatDocumentScope struct {
+	OrganizationID string   `json:"organization_id"`
+	ProjectIDs     []string `json:"project_ids,omitempty"`
+	DeviceIDs      []string `json:"device_ids,omitempty"`
+	DocumentIDs    []string `json:"document_ids,omitempty"`
+}
+
+type SearchDocumentsInScopeInput struct {
+	Query string            `json:"query"`
+	Limit int               `json:"limit,omitempty"`
+	Scope ChatDocumentScope `json:"scope"`
+}
+
+type BrowseDocumentsInScopeInput struct {
+	Limit int               `json:"limit,omitempty"`
+	Scope ChatDocumentScope `json:"scope"`
+}
+
+type DocumentChatCitation struct {
+	DocumentID  string  `json:"documentId"`
+	ProjectID   string  `json:"projectId"`
+	ProjectName string  `json:"projectName"`
+	DeviceID    *string `json:"deviceId,omitempty"`
+	DeviceName  *string `json:"deviceName,omitempty"`
+	Label       string  `json:"label"`
+	Excerpt     string  `json:"excerpt"`
+	MatchReason string  `json:"matchReason"`
+}
+
+type DocumentSearchMatch struct {
+	DocumentID  string               `json:"documentId"`
+	ObjectKey   string               `json:"objectKey"`
+	ContentType string               `json:"contentType"`
+	SizeBytes   int64                `json:"sizeBytes"`
+	CreatedAt   string               `json:"createdAt"`
+	ProjectID   string               `json:"projectId"`
+	ProjectName string               `json:"projectName"`
+	DeviceID    *string              `json:"deviceId,omitempty"`
+	DeviceName  *string              `json:"deviceName,omitempty"`
+	Label       string               `json:"label"`
+	Snippet     string               `json:"snippet"`
+	MatchReason string               `json:"matchReason"`
+	Score       float64              `json:"score"`
+	Citation    DocumentChatCitation `json:"citation"`
+}
+
+type SearchDocumentsInScopeOutput struct {
+	Matches []DocumentSearchMatch `json:"matches"`
+}
+
+type ReadDocumentContextInput struct {
+	DocumentIDs []string          `json:"document_ids"`
+	Scope       ChatDocumentScope `json:"scope"`
+}
+
+type DocumentOCRExcerpt struct {
+	ModelLabel string `json:"modelLabel"`
+	Excerpt    string `json:"excerpt"`
+	CreatedAt  string `json:"createdAt"`
+}
+
+type DocumentSegmentationExcerpt struct {
+	SegmentationID string `json:"segmentationId"`
+	ModelLabel     string `json:"modelLabel"`
+	Prompt         string `json:"prompt,omitempty"`
+	Excerpt        string `json:"excerpt"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+type DocumentContextItem struct {
+	DocumentID           string                        `json:"documentId"`
+	ProjectID            string                        `json:"projectId"`
+	ProjectName          string                        `json:"projectName"`
+	DeviceID             *string                       `json:"deviceId,omitempty"`
+	DeviceName           *string                       `json:"deviceName,omitempty"`
+	Label                string                        `json:"label"`
+	Description          string                        `json:"description,omitempty"`
+	OCRExcerpts          []DocumentOCRExcerpt          `json:"ocrExcerpts,omitempty"`
+	SegmentationExcerpts []DocumentSegmentationExcerpt `json:"segmentationExcerpts,omitempty"`
+	Citation             DocumentChatCitation          `json:"citation"`
+}
+
+type ReadDocumentContextOutput struct {
+	Documents []DocumentContextItem `json:"documents"`
+}

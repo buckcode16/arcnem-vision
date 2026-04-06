@@ -50,6 +50,7 @@ import type {
 	OCRResultItem,
 	SegmentedResultItem,
 } from "@/features/documents/types";
+import { DocumentCollectionChat } from "@/features/documents-chat/components/document-collection-chat";
 import { useDashboardRealtime } from "@/features/realtime/dashboard-realtime-provider";
 import { cn } from "@/lib/utils";
 
@@ -768,12 +769,14 @@ function DocumentDetailModal({
 export function DocumentGalleryPanel({
 	initialData,
 	organizationId,
+	organizationName,
 	projects,
 	devices,
 	workflows,
 }: {
 	initialData: DocumentsResponse;
 	organizationId: string;
+	organizationName: string;
 	projects: DashboardData["projects"];
 	devices: DashboardData["devices"];
 	workflows: DashboardData["workflows"];
@@ -1105,6 +1108,7 @@ export function DocumentGalleryPanel({
 
 	const clearSearch = async () => {
 		setQuery("");
+		if (!isFiltering) return;
 		await resetToRecentDocuments();
 	};
 
@@ -1256,18 +1260,18 @@ export function DocumentGalleryPanel({
 
 	return (
 		<div className="space-y-4">
-			<div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-				<Card className="border-slate-200/60 bg-white/88 shadow-sm">
-					<CardHeader className="pb-3">
-						<CardTitle className="text-lg">Find Images</CardTitle>
+			<div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+				<Card className="self-start border-slate-200/60 bg-white/88 py-5 shadow-sm">
+					<CardHeader className="px-5 pb-2.5">
+						<CardTitle className="text-base sm:text-lg">Find Images</CardTitle>
 						<CardDescription>
 							Search the document library by meaning and then click an image to
 							open its workflow controls.
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-4">
+					<CardContent className="space-y-3 px-5 pt-0">
 						<form
-							className="flex flex-col gap-2 sm:flex-row"
+							className="flex flex-col gap-2 sm:flex-row sm:items-center"
 							onSubmit={onSubmitSearch}
 						>
 							<div className="relative flex-1">
@@ -1276,35 +1280,29 @@ export function DocumentGalleryPanel({
 									value={query}
 									onChange={(event) => setQuery(event.target.value)}
 									placeholder="Search by meaning — e.g. red bike by a window"
-									className="border-slate-300 bg-white pl-9"
+									className="border-slate-300 bg-white pl-9 pr-9"
 								/>
 								{query.length > 0 ? (
 									<button
 										type="button"
-										onClick={() => setQuery("")}
+										onClick={clearSearch}
 										className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
 									>
 										<X className="size-3.5" />
 									</button>
 								) : null}
 							</div>
-							<Button type="submit" disabled={searching} className="shrink-0">
+							<Button
+								type="submit"
+								size="sm"
+								disabled={searching}
+								className="shrink-0 sm:min-w-24"
+							>
 								{searching ? "Searching..." : "Search"}
 							</Button>
-							{isFiltering ? (
-								<Button
-									type="button"
-									variant="outline"
-									onClick={clearSearch}
-									disabled={searching}
-									className="shrink-0"
-								>
-									Clear
-								</Button>
-							) : null}
 						</form>
 
-						<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+						<div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
 							<p className="text-xs text-slate-500">
 								Search stays focused on discovery. Upload is handled separately
 								in the intake panel.
@@ -1329,15 +1327,15 @@ export function DocumentGalleryPanel({
 					</CardContent>
 				</Card>
 
-				<Card className="relative overflow-hidden border-amber-300/70 bg-[linear-gradient(145deg,rgba(255,251,235,0.98),rgba(255,245,225,0.96))] shadow-sm">
-					<div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.18),transparent_55%),radial-gradient(circle_at_top_right,rgba(249,115,22,0.14),transparent_48%)]" />
-					<CardHeader className="relative pb-3">
+				<Card className="relative self-start gap-3 overflow-hidden border-amber-300/70 bg-[linear-gradient(145deg,rgba(255,251,235,0.98),rgba(255,245,225,0.96))] py-4 shadow-sm">
+					<div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.18),transparent_55%),radial-gradient(circle_at_top_right,rgba(249,115,22,0.14),transparent_48%)]" />
+					<CardHeader className="relative gap-2 px-5 pb-0">
 						<div className="flex items-center gap-3">
-							<div className="rounded-2xl border border-amber-300/60 bg-white/70 p-2 shadow-sm">
-								<Upload className="size-5 text-amber-700" />
+							<div className="rounded-xl border border-amber-300/60 bg-white/70 p-1.5 shadow-sm">
+								<Upload className="size-4 text-amber-700" />
 							</div>
 							<div>
-								<CardTitle className="text-lg text-slate-900">
+								<CardTitle className="text-base text-slate-900 sm:text-lg">
 									Add From Dashboard
 								</CardTitle>
 								<CardDescription className="text-slate-600">
@@ -1347,7 +1345,7 @@ export function DocumentGalleryPanel({
 							</div>
 						</div>
 					</CardHeader>
-					<CardContent className="relative space-y-4">
+					<CardContent className="relative space-y-2.5 px-5 pt-0">
 						<input
 							ref={fileInputRef}
 							type="file"
@@ -1355,8 +1353,8 @@ export function DocumentGalleryPanel({
 							className="hidden"
 							onChange={onFileSelected}
 						/>
-						<div className="space-y-1.5">
-							<p className="text-xs font-medium uppercase tracking-[0.16em] text-amber-700/80">
+						<div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+							<p className="text-[11px] font-medium uppercase tracking-[0.16em] text-amber-700/80 sm:whitespace-nowrap">
 								Project Destination
 							</p>
 							<Select
@@ -1364,7 +1362,10 @@ export function DocumentGalleryPanel({
 								onValueChange={setSelectedProjectId}
 								disabled={projects.length === 0}
 							>
-								<SelectTrigger className="border-amber-200 bg-white/85">
+								<SelectTrigger
+									size="sm"
+									className="w-full border-amber-200 bg-white/85 sm:min-w-52"
+								>
 									<SelectValue placeholder="Choose a project" />
 								</SelectTrigger>
 								<SelectContent>
@@ -1377,13 +1378,13 @@ export function DocumentGalleryPanel({
 							</Select>
 						</div>
 
-						<div className="rounded-2xl border border-dashed border-amber-300/80 bg-white/65 p-4">
-							<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+						<div className="rounded-xl border border-dashed border-amber-300/80 bg-white/65 p-3">
+							<div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
 								<div className="space-y-1">
 									<p className="text-sm font-medium text-slate-800">
 										Drop in a reference image, sample photo, or manual capture.
 									</p>
-									<p className="text-sm text-slate-600">
+									<p className="text-xs text-slate-600">
 										Supported formats: JPG, PNG, and WebP up to 10MB.
 									</p>
 								</div>
@@ -1391,7 +1392,8 @@ export function DocumentGalleryPanel({
 									type="button"
 									onClick={onUploadRequested}
 									disabled={!selectedProjectId || uploading}
-									className="min-w-40 bg-slate-900 text-white hover:bg-slate-800"
+									size="sm"
+									className="min-w-36 bg-slate-900 text-white hover:bg-slate-800"
 								>
 									{uploading ? (
 										<>
@@ -1408,7 +1410,7 @@ export function DocumentGalleryPanel({
 							</div>
 						</div>
 
-						<p className="text-xs leading-relaxed text-slate-500">
+						<p className="text-[11px] leading-relaxed text-slate-500">
 							New dashboard uploads appear in the gallery as independent project
 							assets. Click the image afterward to run any workflow you want.
 						</p>
@@ -1510,6 +1512,12 @@ export function DocumentGalleryPanel({
 					onClose={closeSelectedDocument}
 				/>
 			) : null}
+
+			<DocumentCollectionChat
+				organizationId={organizationId}
+				organizationName={organizationName}
+				isLauncherHidden={Boolean(selectedDocument)}
+			/>
 		</div>
 	);
 }

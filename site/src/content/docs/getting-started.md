@@ -28,6 +28,7 @@ Copy every `.env.example` to `.env`:
 ```bash
 cp server/packages/api/.env.example server/packages/api/.env
 cp server/packages/db/.env.example  server/packages/db/.env
+cp server/packages/dashboard/.env.example server/packages/dashboard/.env
 cp models/agents/.env.example       models/agents/.env
 cp models/mcp/.env.example          models/mcp/.env
 cp client/.env.example              client/.env
@@ -36,6 +37,7 @@ cp client/.env.example              client/.env
 Add your two API keys — the only external services required:
 
 - **[OpenAI API key](https://platform.openai.com/api-keys)** → `OPENAI_API_KEY` in `models/agents/.env`
+- **Same OpenAI key (recommended)** → `OPENAI_API_KEY` in `server/packages/dashboard/.env` if you want the Docs tab collection chat enabled locally
 - **[Replicate API token](https://replicate.com/account/api-tokens)** → `REPLICATE_API_TOKEN` in `models/mcp/.env`
 
 Everything else is already configured for local development. Database, S3, and Redis all run in Docker via `docker-compose.yaml` — the `.env.example` defaults point to them out of the box.

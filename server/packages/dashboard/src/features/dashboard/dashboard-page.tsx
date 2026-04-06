@@ -242,6 +242,7 @@ export function DashboardPage({
 								<DocumentGalleryPanel
 									initialData={documents}
 									organizationId={dashboard.organization.id}
+									organizationName={dashboard.organization.name}
 									projects={dashboard.projects}
 									devices={dashboard.devices}
 									workflows={dashboard.workflows}

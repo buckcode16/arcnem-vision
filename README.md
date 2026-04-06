@@ -31,6 +31,7 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 - **On-device Gemma** — Intent parsing happens locally on the phone before anything hits the network. Private by default.
 - **CLIP vector search** — Images and their descriptions are embedded in the same 768-dimensional space. Search by image, by text, or by vibes.
 - **Dashboard control room** — Manage projects, devices, API keys, workflow assignments, and one-off dashboard uploads from the same UI.
+- **Grounded document collection chat** — Ask the Docs tab about the current collection and get answers grounded in OCR, descriptions, and segmentation context with source cards.
 - **Visual workflow builder** — Drag-and-drop agent graphs with workers, tools, supervisors, condition nodes, edges, and reusable workflow templates.
 - **OCR-aware document review** — OCR runs as a first-class MCP tool, stores extracted text plus confidence metadata, and can feed either rule-based routing or specialist review loops.
 - **Realtime operator feedback** — The Docs and Runs tabs update as uploads land, OCR results persist, descriptions finish, segmentations appear, and graph steps advance.
@@ -82,9 +83,9 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 |---|---|
 | ![Flutter Client](site/public/flutter-client.png) | ![Dashboard Projects](site/public/dashboard-projects.png) |
 
-| Workflow Library | Docs Gallery |
+| Workflow Library | Docs Search & Chat |
 |---|---|
-| ![Workflow Library](site/public/dashboard-workflows.png) | ![Docs Gallery](site/public/dashboard-docs.png) |
+| ![Workflow Library](site/public/dashboard-workflows.png) | ![Docs Search and Chat](site/public/dashboard-docs-chat.png) |
 
 | Selected Document & Segmentation | Agent Run Details |
 |---|---|
@@ -97,7 +98,7 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 - **Supervisor** — Multi-agent orchestration across workers
 - **Condition** — Deterministic branching on state with `contains` / `equals` checks and explicit true/false targets
 
-Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture. OCR payloads are persisted separately in `document_ocr_results` so operators can inspect extracted text and confidence without digging through raw run state.
+Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture. OCR payloads are persisted separately in `document_ocr_results` so operators can inspect extracted text and confidence without digging through raw run state. The dashboard's Docs tab sits on top of that same material, combining semantic search with a grounded collection chat that cites matching documents.
 
 ## Repository Layout
 
@@ -134,6 +135,7 @@ Copy every `.env.example` to `.env`:
 ```bash
 cp server/packages/api/.env.example server/packages/api/.env
 cp server/packages/db/.env.example  server/packages/db/.env
+cp server/packages/dashboard/.env.example server/packages/dashboard/.env
 cp models/agents/.env.example       models/agents/.env
 cp models/mcp/.env.example          models/mcp/.env
 cp client/.env.example              client/.env
@@ -142,6 +144,7 @@ cp client/.env.example              client/.env
 Add your two API keys — the only external services required:
 
 - **[OpenAI API key](https://platform.openai.com/api-keys)** → `OPENAI_API_KEY` in `models/agents/.env`
+- **Same OpenAI key (recommended)** → `OPENAI_API_KEY` in `server/packages/dashboard/.env` if you want the Docs tab's collection chat enabled locally
 - **[Replicate API token](https://replicate.com/account/api-tokens)** → `REPLICATE_API_TOKEN` in `models/mcp/.env`
 
 Everything else is already configured for local development. Database, S3, and Redis all run in Docker via `docker-compose.yaml` — the `.env.example` defaults point to them out of the box.

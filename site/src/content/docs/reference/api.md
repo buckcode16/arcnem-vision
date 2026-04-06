@@ -84,6 +84,20 @@ POST /api/dashboard/documents/:id/run
   - `status`: always `queued`
   - `documentId`, `workflowId`, `workflowName`
 
+Dashboard document chat uses:
+
+```http
+POST /api/documents/chat
+```
+
+Notes:
+
+- Dashboard auth is session-based and must resolve to the active organization.
+- Request body follows the TanStack AI chat shape: `messages` plus optional `conversationId` and `scope`.
+- `scope` must stay inside the authenticated organization. The current UI sends organization scope, while the endpoint also accepts optional `projectIds`, `deviceIds`, and `documentIds`.
+- Responses stream over Server-Sent Events.
+- Grounded source cards are delivered as `assistant_sources` custom events with `documentId`, `projectName`, optional `deviceName`, `label`, `excerpt`, and `matchReason`.
+
 ## Dashboard Realtime Feed
 
 ```http

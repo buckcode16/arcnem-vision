@@ -45,7 +45,7 @@ Agent graphs are data, not code. Templates define reusable workflows with nodes,
 - **Supervisor** — Multi-agent orchestration across workers
 - **Condition** — Deterministic branching on state using `contains` / `equals` checks and explicit true/false targets
 
-Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture. OCR payloads are persisted in `document_ocr_results`, so operators can inspect extracted text and confidence directly in the dashboard.
+Every execution is traced step-by-step in `agent_graph_runs` and `agent_graph_run_steps` — state deltas, timing, errors, the full picture. OCR payloads are persisted in `document_ocr_results`, so operators can inspect extracted text and confidence directly in the dashboard. The Docs tab builds on that same data with semantic search plus a grounded collection chat that cites matching documents.
 
 ## Repository Layout
 

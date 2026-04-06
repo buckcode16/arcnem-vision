@@ -24,6 +24,9 @@ func StartServer() {
 	tools.RegisterCreateDescriptionEmbedding(server)
 	tools.RegisterFindSimilarDocuments(server)
 	tools.RegisterFindSimilarDescriptions(server)
+	tools.RegisterSearchDocumentsInScope(server)
+	tools.RegisterBrowseDocumentsInScope(server)
+	tools.RegisterReadDocumentContext(server)
 
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server
