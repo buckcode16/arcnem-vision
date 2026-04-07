@@ -26,9 +26,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		AgentGraphRun:                newAgentGraphRun(db, opts...),
 		AgentGraphRunStep:            newAgentGraphRunStep(db, opts...),
 		AgentGraphTemplate:           newAgentGraphTemplate(db, opts...),
-		AgentGraphTemplateEdge:       newAgentGraphTemplateEdge(db, opts...),
-		AgentGraphTemplateNode:       newAgentGraphTemplateNode(db, opts...),
-		AgentGraphTemplateNodeTool:   newAgentGraphTemplateNodeTool(db, opts...),
+		AgentGraphTemplateVersion:    newAgentGraphTemplateVersion(db, opts...),
 		Apikey:                       newApikey(db, opts...),
 		Device:                       newDevice(db, opts...),
 		Document:                     newDocument(db, opts...),
@@ -61,9 +59,7 @@ type Query struct {
 	AgentGraphRun                agentGraphRun
 	AgentGraphRunStep            agentGraphRunStep
 	AgentGraphTemplate           agentGraphTemplate
-	AgentGraphTemplateEdge       agentGraphTemplateEdge
-	AgentGraphTemplateNode       agentGraphTemplateNode
-	AgentGraphTemplateNodeTool   agentGraphTemplateNodeTool
+	AgentGraphTemplateVersion    agentGraphTemplateVersion
 	Apikey                       apikey
 	Device                       device
 	Document                     document
@@ -97,9 +93,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		AgentGraphRun:                q.AgentGraphRun.clone(db),
 		AgentGraphRunStep:            q.AgentGraphRunStep.clone(db),
 		AgentGraphTemplate:           q.AgentGraphTemplate.clone(db),
-		AgentGraphTemplateEdge:       q.AgentGraphTemplateEdge.clone(db),
-		AgentGraphTemplateNode:       q.AgentGraphTemplateNode.clone(db),
-		AgentGraphTemplateNodeTool:   q.AgentGraphTemplateNodeTool.clone(db),
+		AgentGraphTemplateVersion:    q.AgentGraphTemplateVersion.clone(db),
 		Apikey:                       q.Apikey.clone(db),
 		Device:                       q.Device.clone(db),
 		Document:                     q.Document.clone(db),
@@ -140,9 +134,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		AgentGraphRun:                q.AgentGraphRun.replaceDB(db),
 		AgentGraphRunStep:            q.AgentGraphRunStep.replaceDB(db),
 		AgentGraphTemplate:           q.AgentGraphTemplate.replaceDB(db),
-		AgentGraphTemplateEdge:       q.AgentGraphTemplateEdge.replaceDB(db),
-		AgentGraphTemplateNode:       q.AgentGraphTemplateNode.replaceDB(db),
-		AgentGraphTemplateNodeTool:   q.AgentGraphTemplateNodeTool.replaceDB(db),
+		AgentGraphTemplateVersion:    q.AgentGraphTemplateVersion.replaceDB(db),
 		Apikey:                       q.Apikey.replaceDB(db),
 		Device:                       q.Device.replaceDB(db),
 		Document:                     q.Document.replaceDB(db),
@@ -173,9 +165,7 @@ type queryCtx struct {
 	AgentGraphRun                *agentGraphRunDo
 	AgentGraphRunStep            *agentGraphRunStepDo
 	AgentGraphTemplate           *agentGraphTemplateDo
-	AgentGraphTemplateEdge       *agentGraphTemplateEdgeDo
-	AgentGraphTemplateNode       *agentGraphTemplateNodeDo
-	AgentGraphTemplateNodeTool   *agentGraphTemplateNodeToolDo
+	AgentGraphTemplateVersion    *agentGraphTemplateVersionDo
 	Apikey                       *apikeyDo
 	Device                       *deviceDo
 	Document                     *documentDo
@@ -206,9 +196,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		AgentGraphRun:                q.AgentGraphRun.WithContext(ctx),
 		AgentGraphRunStep:            q.AgentGraphRunStep.WithContext(ctx),
 		AgentGraphTemplate:           q.AgentGraphTemplate.WithContext(ctx),
-		AgentGraphTemplateEdge:       q.AgentGraphTemplateEdge.WithContext(ctx),
-		AgentGraphTemplateNode:       q.AgentGraphTemplateNode.WithContext(ctx),
-		AgentGraphTemplateNodeTool:   q.AgentGraphTemplateNodeTool.WithContext(ctx),
+		AgentGraphTemplateVersion:    q.AgentGraphTemplateVersion.WithContext(ctx),
 		Apikey:                       q.Apikey.WithContext(ctx),
 		Device:                       q.Device.WithContext(ctx),
 		Document:                     q.Document.WithContext(ctx),

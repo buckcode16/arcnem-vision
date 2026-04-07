@@ -12,12 +12,13 @@ const TableNameProject = "projects"
 
 // Project mapped from table <projects>
 type Project struct {
-	ID             string    `gorm:"column:id;type:uuid;primaryKey;default:uuidv7()" json:"id"`
-	Name           string    `gorm:"column:name;type:text;not null" json:"name"`
-	Slug           string    `gorm:"column:slug;type:text;not null" json:"slug"`
-	OrganizationID string    `gorm:"column:organization_id;type:uuid;not null" json:"organization_id"`
-	CreatedAt      time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
-	UpdatedAt      time.Time `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
+	ID             string     `gorm:"column:id;type:uuid;primaryKey;default:uuidv7()" json:"id"`
+	Name           string     `gorm:"column:name;type:text;not null" json:"name"`
+	Slug           string     `gorm:"column:slug;type:text;not null" json:"slug"`
+	OrganizationID string     `gorm:"column:organization_id;type:uuid;not null" json:"organization_id"`
+	CreatedAt      time.Time  `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
+	UpdatedAt      time.Time  `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
+	ArchivedAt     *time.Time `gorm:"column:archived_at;type:timestamp without time zone" json:"archived_at"`
 }
 
 // TableName Project's table name

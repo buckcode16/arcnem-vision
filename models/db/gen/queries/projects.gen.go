@@ -33,6 +33,7 @@ func newProject(db *gorm.DB, opts ...gen.DOOption) project {
 	_project.OrganizationID = field.NewString(tableName, "organization_id")
 	_project.CreatedAt = field.NewTime(tableName, "created_at")
 	_project.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_project.ArchivedAt = field.NewTime(tableName, "archived_at")
 
 	_project.fillFieldMap()
 
@@ -49,6 +50,7 @@ type project struct {
 	OrganizationID field.String
 	CreatedAt      field.Time
 	UpdatedAt      field.Time
+	ArchivedAt     field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -71,6 +73,7 @@ func (p *project) updateTableName(table string) *project {
 	p.OrganizationID = field.NewString(table, "organization_id")
 	p.CreatedAt = field.NewTime(table, "created_at")
 	p.UpdatedAt = field.NewTime(table, "updated_at")
+	p.ArchivedAt = field.NewTime(table, "archived_at")
 
 	p.fillFieldMap()
 
@@ -95,13 +98,14 @@ func (p *project) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (p *project) fillFieldMap() {
-	p.fieldMap = make(map[string]field.Expr, 6)
+	p.fieldMap = make(map[string]field.Expr, 7)
 	p.fieldMap["id"] = p.ID
 	p.fieldMap["name"] = p.Name
 	p.fieldMap["slug"] = p.Slug
 	p.fieldMap["organization_id"] = p.OrganizationID
 	p.fieldMap["created_at"] = p.CreatedAt
 	p.fieldMap["updated_at"] = p.UpdatedAt
+	p.fieldMap["archived_at"] = p.ArchivedAt
 }
 
 func (p project) clone(db *gorm.DB) project {

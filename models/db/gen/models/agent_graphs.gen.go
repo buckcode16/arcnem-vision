@@ -12,16 +12,16 @@ const TableNameAgentGraph = "agent_graphs"
 
 // AgentGraph mapped from table <agent_graphs>
 type AgentGraph struct {
-	ID                        string    `gorm:"column:id;type:uuid;primaryKey;default:uuidv7()" json:"id"`
-	Name                      string    `gorm:"column:name;type:text;not null" json:"name"`
-	Description               *string   `gorm:"column:description;type:text" json:"description"`
-	EntryNode                 string    `gorm:"column:entry_node;type:text;not null" json:"entry_node"`
-	StateSchema               *string   `gorm:"column:state_schema;type:jsonb" json:"state_schema"`
-	AgentGraphTemplateID      *string   `gorm:"column:agent_graph_template_id;type:uuid" json:"agent_graph_template_id"`
-	AgentGraphTemplateVersion *int32    `gorm:"column:agent_graph_template_version;type:integer" json:"agent_graph_template_version"`
-	OrganizationID            string    `gorm:"column:organization_id;type:uuid;not null" json:"organization_id"`
-	CreatedAt                 time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
-	UpdatedAt                 time.Time `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
+	ID                          string    `gorm:"column:id;type:uuid;primaryKey;default:uuidv7()" json:"id"`
+	Name                        string    `gorm:"column:name;type:text;not null" json:"name"`
+	Description                 *string   `gorm:"column:description;type:text" json:"description"`
+	EntryNode                   string    `gorm:"column:entry_node;type:text;not null" json:"entry_node"`
+	StateSchema                 *string   `gorm:"column:state_schema;type:jsonb" json:"state_schema"`
+	AgentGraphTemplateID        *string   `gorm:"column:agent_graph_template_id;type:uuid" json:"agent_graph_template_id"`
+	OrganizationID              string    `gorm:"column:organization_id;type:uuid;not null" json:"organization_id"`
+	CreatedAt                   time.Time `gorm:"column:created_at;type:timestamp without time zone;not null;default:now()" json:"created_at"`
+	UpdatedAt                   time.Time `gorm:"column:updated_at;type:timestamp without time zone;not null;default:now()" json:"updated_at"`
+	AgentGraphTemplateVersionID *string   `gorm:"column:agent_graph_template_version_id;type:uuid" json:"agent_graph_template_version_id"`
 }
 
 // TableName AgentGraph's table name

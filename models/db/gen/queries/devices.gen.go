@@ -35,6 +35,7 @@ func newDevice(db *gorm.DB, opts ...gen.DOOption) device {
 	_device.AgentGraphID = field.NewString(tableName, "agent_graph_id")
 	_device.CreatedAt = field.NewTime(tableName, "created_at")
 	_device.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_device.ArchivedAt = field.NewTime(tableName, "archived_at")
 
 	_device.fillFieldMap()
 
@@ -53,6 +54,7 @@ type device struct {
 	AgentGraphID   field.String
 	CreatedAt      field.Time
 	UpdatedAt      field.Time
+	ArchivedAt     field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -77,6 +79,7 @@ func (d *device) updateTableName(table string) *device {
 	d.AgentGraphID = field.NewString(table, "agent_graph_id")
 	d.CreatedAt = field.NewTime(table, "created_at")
 	d.UpdatedAt = field.NewTime(table, "updated_at")
+	d.ArchivedAt = field.NewTime(table, "archived_at")
 
 	d.fillFieldMap()
 
@@ -101,7 +104,7 @@ func (d *device) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (d *device) fillFieldMap() {
-	d.fieldMap = make(map[string]field.Expr, 8)
+	d.fieldMap = make(map[string]field.Expr, 9)
 	d.fieldMap["id"] = d.ID
 	d.fieldMap["name"] = d.Name
 	d.fieldMap["slug"] = d.Slug
@@ -110,6 +113,7 @@ func (d *device) fillFieldMap() {
 	d.fieldMap["agent_graph_id"] = d.AgentGraphID
 	d.fieldMap["created_at"] = d.CreatedAt
 	d.fieldMap["updated_at"] = d.UpdatedAt
+	d.fieldMap["archived_at"] = d.ArchivedAt
 }
 
 func (d device) clone(db *gorm.DB) device {
