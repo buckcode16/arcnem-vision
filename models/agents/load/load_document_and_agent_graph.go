@@ -21,7 +21,49 @@ func LoadDocumentAndAgentGraph(ctx context.Context, db *gorm.DB, documentID uuid
 		args = []any{*agentGraphID, documentID}
 	}
 
-	tx := db.WithContext(ctx).Raw(fmt.Sprintf(`
+	tx := db.WithContext(ctx).Raw(loadDocumentAndAgentGraphQuery(graphJoin), args...).Scan(&row)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return nil, fmt.Errorf("document %s not found or has no related device", documentID)
+	}
+
+	document := &dbmodels.Document{}
+	if err := json.Unmarshal(row.DocumentJSON, document); err != nil {
+		return nil, fmt.Errorf("failed to decode document payload: %w", err)
+	}
+
+	var agentGraph *dbmodels.AgentGraph
+	if len(row.AgentGraphJSON) > 0 && string(row.AgentGraphJSON) != "null" {
+		agentGraph = &dbmodels.AgentGraph{}
+		if err := json.Unmarshal(row.AgentGraphJSON, agentGraph); err != nil {
+			return nil, fmt.Errorf("failed to decode agent graph payload: %w", err)
+		}
+	}
+
+	nodes, err := utils.DecodeJSONSlice[graphs.SnapshotNode](row.NodesJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode graph nodes payload: %w", err)
+	}
+
+	edges, err := utils.DecodeJSONSlice[dbmodels.AgentGraphEdge](row.EdgesJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode graph edges payload: %w", err)
+	}
+
+	return &DocumentAndAgentGraph{
+		Document: document,
+		GraphSnapshot: &graphs.Snapshot{
+			AgentGraph: agentGraph,
+			Nodes:      nodes,
+			Edges:      edges,
+		},
+	}, nil
+}
+
+func loadDocumentAndAgentGraphQuery(graphJoin string) string {
+	return fmt.Sprintf(`
 		SELECT
 			(to_jsonb(d) - 'last_modified_at' - 'created_at' - 'updated_at') AS document,
 			CASE
@@ -36,7 +78,7 @@ func LoadDocumentAndAgentGraph(ctx context.Context, db *gorm.DB, documentID uuid
 						ELSE ag.state_schema::text
 					END,
 					'agent_graph_template_id', ag.agent_graph_template_id,
-					'agent_graph_template_version', ag.agent_graph_template_version,
+					'agent_graph_template_version_id', ag.agent_graph_template_version_id,
 					'organization_id', ag.organization_id
 				)
 			END AS agent_graph,
@@ -108,43 +150,5 @@ func LoadDocumentAndAgentGraph(ctx context.Context, db *gorm.DB, documentID uuid
 		) edges ON TRUE
 		WHERE d.id = ?
 		LIMIT 1
-	`, graphJoin), args...).Scan(&row)
-	if tx.Error != nil {
-		return nil, tx.Error
-	}
-	if tx.RowsAffected == 0 {
-		return nil, fmt.Errorf("document %s not found or has no related device", documentID)
-	}
-
-	document := &dbmodels.Document{}
-	if err := json.Unmarshal(row.DocumentJSON, document); err != nil {
-		return nil, fmt.Errorf("failed to decode document payload: %w", err)
-	}
-
-	var agentGraph *dbmodels.AgentGraph
-	if len(row.AgentGraphJSON) > 0 && string(row.AgentGraphJSON) != "null" {
-		agentGraph = &dbmodels.AgentGraph{}
-		if err := json.Unmarshal(row.AgentGraphJSON, agentGraph); err != nil {
-			return nil, fmt.Errorf("failed to decode agent graph payload: %w", err)
-		}
-	}
-
-	nodes, err := utils.DecodeJSONSlice[graphs.SnapshotNode](row.NodesJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode graph nodes payload: %w", err)
-	}
-
-	edges, err := utils.DecodeJSONSlice[dbmodels.AgentGraphEdge](row.EdgesJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode graph edges payload: %w", err)
-	}
-
-	return &DocumentAndAgentGraph{
-		Document: document,
-		GraphSnapshot: &graphs.Snapshot{
-			AgentGraph: agentGraph,
-			Nodes:      nodes,
-			Edges:      edges,
-		},
-	}, nil
+	`, graphJoin)
 }
