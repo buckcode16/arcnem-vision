@@ -52,7 +52,7 @@ That's it. Tilt installs all dependencies, starts Postgres/Redis/MinIO, runs mig
 
 ## 3. Seed the database
 
-In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, OCR keyword-routing and OCR supervisor showcase workflows, and segmentation showcase workflows. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
+In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, OCR keyword-routing and OCR supervisor showcase workflows, segmentation showcase workflows, and matching reusable workflow templates. Open **Workflow Library** -> **Browse Templates** to start a new graph from any seeded template right away. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
 
 ## Health checks
 

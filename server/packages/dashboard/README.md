@@ -5,7 +5,7 @@ React dashboard for managing projects, devices, API keys, workflows, uploaded do
 ## What this package does
 
 - **Projects & Devices tab**: create projects, register devices, assign default workflows, and issue or rotate device API keys.
-- **Workflow Library tab**: create/edit graph workflows with a visual canvas.
+- **Workflow Library tab**: create/edit graph workflows with a visual canvas, browse reusable templates, and start a new workflow from any template.
 - **Docs tab**: browse uploads, run semantic search, ask grounded questions across the current collection, upload directly from the dashboard, inspect related OCR and segmented outputs, and queue workflows against any document.
 - **Runs tab**: inspect execution history and per-step state changes with realtime refresh.
 
@@ -40,11 +40,14 @@ Dev server runs on `http://localhost:3001`.
 
 ## Workflow editor notes
 
-- Node types: `worker`, `supervisor`, `tool`
+- The Workflow Library exposes a searchable template picker. Operators can search by workflow name, node role, or tool, then clone a template into a new workflow canvas.
+- Started workflows keep their source template provenance on `agent_graph_template_id` and `agent_graph_template_version`.
+- Node types: `worker`, `supervisor`, `condition`, `tool`
 - Worker/supervisor nodes require a model
 - Workers can have multiple tools
 - Tool nodes require exactly one tool and support input/output mapping
-- Graph validation enforces unique node keys, valid edges, and entry-to-`END` reachability
+- Condition nodes require `true_target` / `false_target` routing and exactly two managed outgoing edges
+- Graph validation enforces unique node keys, valid edges, valid supervisor membership, valid condition routing, and entry-to-`END` reachability
 
 ## Document operations notes
 

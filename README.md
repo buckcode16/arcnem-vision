@@ -32,7 +32,7 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 - **CLIP vector search** — Images and their descriptions are embedded in the same 768-dimensional space. Search by image, by text, or by vibes.
 - **Dashboard control room** — Manage projects, devices, API keys, workflow assignments, and one-off dashboard uploads from the same UI.
 - **Grounded document collection chat** — Ask the Docs tab about the current collection and get answers grounded in OCR, descriptions, and segmentation context with source cards.
-- **Visual workflow builder** — Drag-and-drop agent graphs with workers, tools, supervisors, condition nodes, edges, and reusable workflow templates.
+- **Visual workflow builder** — Drag-and-drop agent graphs with workers, tools, supervisors, condition nodes, edges, and reusable templates you can search and start from in the dashboard.
 - **OCR-aware document review** — OCR runs as a first-class MCP tool, stores extracted text plus confidence metadata, and can feed either rule-based routing or specialist review loops.
 - **Realtime operator feedback** — The Docs and Runs tabs update as uploads land, OCR results persist, descriptions finish, segmentations appear, and graph steps advance.
 - **MCP tools as a first-class primitive** — CLIP embeddings, descriptions, OCR, similarity search, and segmentation models all sit behind MCP. Agents call them. You can too.
@@ -91,7 +91,7 @@ Four languages. Five services. One pipeline from camera shutter to semantic sear
 |---|---|
 | ![Selected Document and Segmentation](site/public/dashboard-docs-segmentation-detail.png) | ![Agent Run Details](site/public/dashboard-run-detail.png) |
 
-**Agent graphs are data, not code.** Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Four node types:
+**Agent graphs are data, not code.** Templates define reusable workflows with nodes, edges, and tools. The dashboard's Workflow Library lets operators browse templates, search by workflow name, node role, or tool, and start a new graph from a template straight into the canvas. Started graphs stay editable as independent copies while retaining their source template version for provenance. Four node types:
 
 - **Worker** — ReAct agent with access to MCP tools
 - **Tool** — Single MCP tool invocation with input/output mapping
@@ -159,7 +159,7 @@ That's it. Tilt installs all dependencies, starts Postgres/Redis/MinIO, runs mig
 
 ### 3. Seed the database
 
-In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, OCR keyword-routing and OCR supervisor showcase workflows, and segmentation showcase workflows. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
+In the Tilt UI, click the **seed-database** resource and hit the trigger button. The seed now creates a demo organization with projects, devices, API keys, newer sample images, OCR keyword-routing and OCR supervisor showcase workflows, segmentation showcase workflows, and matching reusable workflow templates. Open **Workflow Library** -> **Browse Templates** to start a new graph from any seeded template immediately. It also prints a usable API key — set `DEBUG_SEED_API_KEY=...` in `client/.env` for auto-auth in the Flutter app during development.
 
 ### Health checks
 

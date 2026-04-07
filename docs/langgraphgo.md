@@ -869,9 +869,15 @@ This bridges our `models/mcp` service's tools into langgraphgo agent graphs.
 ## How We Use It: Schema-Driven Graphs
 
 Our architecture is unique: **agent graphs are defined in the database, not in
-code**. The DB schema (`agent_graphs`, `agent_graph_nodes`,
-`agent_graph_edges`) stores the graph structure. At runtime, we load a
-`Snapshot` and build a langgraphgo `StateGraph` from it.
+code**. Reusable templates live in `agent_graph_templates`,
+`agent_graph_template_nodes`, and `agent_graph_template_edges`. Started,
+organization-scoped graphs live in `agent_graphs`, `agent_graph_nodes`, and
+`agent_graph_edges`. The dashboard can browse templates, search by workflow
+name, node role, or tool, then clone one into a new graph. That started graph
+keeps `agent_graph_template_id` and `agent_graph_template_version` for
+provenance while remaining an independent editable copy. At runtime, we load a
+`Snapshot` from the concrete graph tables and build a langgraphgo `StateGraph`
+from it.
 
 ### Current Implementation
 

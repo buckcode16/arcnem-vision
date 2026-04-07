@@ -38,7 +38,7 @@ Client captures image → API issues presigned S3 URL → Client uploads directl
 
 ![Workflow Library showing both pipeline and supervisor workflows](/dashboard-workflows.png)
 
-Agent graphs are data, not code. Templates define reusable workflows with nodes, edges, and tools. Instances bind templates to organizations. Four node types:
+Agent graphs are data, not code. Templates define reusable workflows with nodes, edges, and tools. In the dashboard, operators can browse templates, search by workflow name, node role, or tool, and start a new organization workflow from any template. Started graphs remain editable copies and retain the source template version for provenance. Four node types:
 
 - **Worker** — ReAct agent with access to MCP tools
 - **Tool** — Single MCP tool invocation with input/output mapping

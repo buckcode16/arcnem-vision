@@ -10,7 +10,7 @@ The dashboard (`server/packages/dashboard`) is the operator control room for Arc
 ## Tabs at a glance
 
 - **Projects & Devices**: create projects, register devices, assign default workflows, and issue or rotate device API keys.
-- **Workflow Library**: create/edit graph workflows.
+- **Workflow Library**: create/edit graph workflows, browse reusable templates, and start new graphs from the template picker.
 - **Docs**: browse seeded or live uploads, run semantic search, ask grounded questions across the collection, upload directly from the dashboard, inspect related OCR and segmentation outputs, and queue workflows against any document.
 - **Runs**: monitor execution history with live updates as runs start, advance, and finish.
 
@@ -30,7 +30,20 @@ Notes:
 
 ![Workflow Library with document and segmentation workflows](/dashboard-workflows.png)
 
-Open **Workflow Library** and create a new workflow or edit an existing one.
+Open **Workflow Library** to create a blank workflow, start from a reusable template, or edit an existing graph.
+
+![Template picker for starting a new graph from a workflow template](/dashboard-template-picker.png)
+
+### Starting from a template
+
+1. Click **Browse Templates** from the Workflow Library hero.
+2. Search by workflow name, node role, or tool.
+3. Review the template card for version, visibility, entry node, edge count, how many workflows have already been started from it, and sample node keys.
+4. Click **Use Template**.
+5. The dashboard clones the template into a new organization workflow, opens it in the canvas, and keeps the source template + version visible on the started workflow card.
+6. If the template name is already taken, the dashboard auto-increments the new workflow name (`Foo`, `Foo 2`, and so on).
+
+- Started workflows are independent copies. You can edit nodes, edges, tools, and metadata on the new graph without mutating the template.
 
 ### Node types
 
@@ -114,4 +127,4 @@ Segmentation flows are ordinary workflows. The difference is the tool they call:
 - Use a `supervisor` when OCR needs semantic judgment, such as routing to billing vs operations specialists.
 - Versioned models in the `models` table can be marked as segmentation models and called from MCP.
 - `create_document_segmentation` stores both the raw result payload and any derived segmented image.
-- The seed includes `OCR Keyword Condition Router`, `OCR Review Supervisor`, language segmentation, and semantic segmentation showcase workflows so you can test the dashboard end to end immediately.
+- The seed includes `OCR Keyword Condition Router`, `OCR Review Supervisor`, language segmentation, and semantic segmentation showcase workflows plus matching reusable templates, so you can test both blank-canvas editing and template-based starts immediately.
