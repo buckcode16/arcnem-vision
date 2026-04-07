@@ -30,9 +30,8 @@ Dev server runs on `http://localhost:3001`.
 
 `server/packages/dashboard/.env.example`:
 
-- `API_URL`: API base URL (default local value: `http://localhost:3000`)
+- `VITE_API_URL`: the single API base URL used by both the browser and server-side dashboard requests
 - `DATABASE_URL`: local Postgres connection string
-- `DASHBOARD_SESSION_TOKEN`: optional local debug session token
 - `OPENAI_API_KEY`: required for Docs-tab collection chat
 - `OPENAI_MODEL`: optional model override for Docs-tab collection chat (defaults to `gpt-4.1-mini`)
 - `MCP_SERVER_URL`: MCP endpoint used to ground Docs-tab chat answers
@@ -72,3 +71,5 @@ Dev server runs on `http://localhost:3001`.
 ```bash
 bun run build
 ```
+
+For local Docker smoke tests, copy `server/packages/dashboard/.env.docker.example` to `.env.docker`; `make` reads the `.env.docker` file.

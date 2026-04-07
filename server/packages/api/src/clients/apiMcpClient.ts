@@ -1,9 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { API_ENV_VAR } from "@/env/apiEnvVar";
+import { getAPIEnvVar } from "@/env/getAPIEnvVar";
 
-const MCP_SERVER_URL =
-	process.env[API_ENV_VAR.MCP_SERVER_URL] ?? "http://localhost:3021";
+const MCP_SERVER_URL = getAPIEnvVar(API_ENV_VAR.MCP_SERVER_URL);
 
 export class ApiMcpClient {
 	private readonly client = new Client(

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Running migrations..."
 
@@ -7,10 +7,38 @@ echo "Running migrations..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 
+is_retryable_error() {
+  local output="$1"
+
+  case "$output" in
+    *"ECONNREFUSED"*|*"Connection refused"*|*"ENOTFOUND"*|*"no such host"*|*"could not connect to server"*|*"database system is starting up"*|*"timeout expired"*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Custom migration runner - bypasses drizzle-kit's broken dynamic import resolution
-until bun run /app/packages/db/runMigrations.ts 2>&1; do
+while true; do
+  set +e
+  OUTPUT=$(bun run /app/packages/db/runMigrations.ts 2>&1)
   EXIT_CODE=$?
+  set -e
+
+  echo "$OUTPUT"
+
+  if [ $EXIT_CODE -eq 0 ]; then
+    break
+  fi
+
   RETRY_COUNT=$((RETRY_COUNT+1))
+
+  if ! is_retryable_error "$OUTPUT"; then
+    echo "Migration failed with a non-retryable error"
+    exit $EXIT_CODE
+  fi
 
   if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
     echo "Failed to run migrations after $MAX_RETRIES attempts"

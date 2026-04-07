@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { DASHBOARD_ENV_VAR } from "@/env/dashboardEnvVar";
+import { getDashboardEnvVar } from "@/env/getDashboardEnvVar";
 import { getDashboardSessionCookieHeader } from "@/features/dashboard/server/session-context";
 import type {
 	DocumentUploadAckResponse,
@@ -6,7 +8,7 @@ import type {
 	DocumentWorkflowRunResponse,
 } from "@/features/documents/types";
 
-const API_URL = process.env.API_URL ?? "http://localhost:3000";
+const API_URL = getDashboardEnvVar(DASHBOARD_ENV_VAR.VITE_API_URL);
 
 async function buildHeaders() {
 	const headers: Record<string, string> = {

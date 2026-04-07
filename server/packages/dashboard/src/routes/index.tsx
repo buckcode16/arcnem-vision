@@ -18,22 +18,10 @@ export const Route = createFileRoute("/")({
 	}),
 	component: DashboardRoute,
 	loader: async ({ deps }) => {
-		let forwardedHeaders: HeadersInit | undefined;
-		if (typeof document === "undefined") {
-			const { getRequestHeader } = await import("@tanstack/react-start/server");
-			const cookieHeader = getRequestHeader("cookie");
-			if (cookieHeader) {
-				forwardedHeaders = {
-					cookie: cookieHeader,
-				};
-			}
-		}
-
 		const dashboard = await getDashboardData({
 			data: {
 				includeArchived: deps.showArchived,
 			},
-			headers: forwardedHeaders,
 		});
 
 		let documents = { documents: [], nextCursor: null } as Awaited<
@@ -47,11 +35,9 @@ export const Route = createFileRoute("/")({
 			const [docsResult, runsResult] = await Promise.allSettled([
 				getDocuments({
 					data: { organizationId: orgId },
-					headers: forwardedHeaders,
 				}),
 				getAgentGraphRuns({
 					data: { organizationId: orgId },
-					headers: forwardedHeaders,
 				}),
 			]);
 			if (docsResult.status === "fulfilled") {

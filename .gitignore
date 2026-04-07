@@ -1,10 +1,12 @@
 .env
 .env.*
 !.env.example
+!.env.docker.example
 .DS_Store
 *.log
 node_modules
 bin
 tmp
+.make/
 site/dist
 site/.astro

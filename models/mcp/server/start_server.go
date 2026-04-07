@@ -32,6 +32,14 @@ func StartServer() {
 		return server
 	}, nil)
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+	mux.Handle("/", handler)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3021"
@@ -39,7 +47,7 @@ func StartServer() {
 	addr := ":" + port
 	log.Printf("MCP streamable HTTP server listening on %s", addr)
 
-	if err := http.ListenAndServe(addr, handler); err != nil {
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}
 }

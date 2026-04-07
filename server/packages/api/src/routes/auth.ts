@@ -10,21 +10,8 @@ export const authRouter = new Hono<HonoServerContext>({
 	strict: false,
 });
 const isDebugMode = isAPIDebugModeEnabled();
-const FALLBACK_DEV_SESSION_TOKEN =
+const DEBUG_SESSION_TOKEN =
 	"seed_dashboard_session_s4M8xR2vJ7nK1qP5wL9cD3fH6tY0uB4";
-
-function getDebugSessionToken() {
-	const configuredToken = process.env.DASHBOARD_SESSION_TOKEN?.trim();
-	if (configuredToken) {
-		return configuredToken;
-	}
-
-	if (isDebugMode) {
-		return FALLBACK_DEV_SESSION_TOKEN;
-	}
-
-	return null;
-}
 
 function getSessionCookieName() {
 	return getAPIEnvVar("BETTER_AUTH_BASE_URL").startsWith("https://")
@@ -37,18 +24,10 @@ authRouter.get("/auth/debug/session", async (c) => {
 		return c.json({ message: "Debug auth is disabled." }, 404);
 	}
 
-	const sessionToken = getDebugSessionToken();
-	if (!sessionToken) {
-		return c.json(
-			{ message: "No debug dashboard session is configured." },
-			404,
-		);
-	}
-
 	const dbClient = c.get("dbClient");
 	const session = await dbClient.query.sessions.findFirst({
 		where: (row) =>
-			and(eq(row.token, sessionToken), gt(row.expiresAt, new Date())),
+			and(eq(row.token, DEBUG_SESSION_TOKEN), gt(row.expiresAt, new Date())),
 		columns: {
 			token: true,
 			expiresAt: true,
@@ -56,7 +35,7 @@ authRouter.get("/auth/debug/session", async (c) => {
 	});
 
 	if (!session) {
-		return c.json({ message: "Configured debug session was not found." }, 404);
+		return c.json({ message: "Seed debug session was not found." }, 404);
 	}
 
 	const maxAge = Math.max(
